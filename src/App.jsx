@@ -728,6 +728,28 @@ function Sell({ curProfile, go, setListings }) {
   });
   const [loading, setLoading] = useState(false);
 
+const [images, setImages] = useState([]);
+const [imageUrls, setImageUrls] = useState([]);
+
+async function uploadImages(listingId) {
+  const urls = [];
+  for (const img of images) {
+    const ext = img.name.split(".").pop();
+    const path = `${curProfile.id}/${listingId}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from("listing-images")
+      .upload(path, img);
+    if (!error) {
+      const { data } = supabase.storage
+        .from("listing-images")
+        .getPublicUrl(path);
+      urls.push(data.publicUrl);
+    }
+  }
+  return urls;
+}
+
+
   async function submit() {
     if (!curProfile) { go("login"); return; }
     if (!form.brand || !form.name || !form.price) { alert("Töltsd ki a kötelező mezőket!"); return; }
@@ -752,8 +774,14 @@ function Sell({ curProfile, go, setListings }) {
     }).select().single();
     setLoading(false);
     if (error) { alert("Hiba: " + error.message); return; }
-    setListings(prev => [data, ...prev]);
-    go("market");
+   if (images.length > 0) {
+  const urls = await uploadImages(data.id);
+  await supabase.from("listings").update({ image_urls: urls }).eq("id", data.id);
+  data.image_urls = urls;
+}
+setListings(prev => [data, ...prev]);
+go("market");
+
   }
 
   const inp = { background:"#141009", border:"1px solid #221e18", color:"#f0e4cc",
@@ -846,6 +874,27 @@ function Sell({ curProfile, go, setListings }) {
       <F label="Tagek (vesszővel elválasztva)">
         <input value={form.tags} onChange={e=>setForm({...form,tags:e.target.value})} placeholder="creed, niche, woody" style={inp} />
       </F>
+<F label="Fotók (max 5)">
+  <input type="file" accept="image/*" multiple
+    onChange={e => setImages(Array.from(e.target.files).slice(0,5))}
+    style={{ color:"#c9952a", fontFamily:"'DM Mono',monospace", fontSize:12 }} />
+  {images.length > 0 && (
+    <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+      {images.map((img,i) => (
+        <div key={i} style={{ position:"relative" }}>
+          <img src={URL.createObjectURL(img)}
+            style={{ width:80, height:80, objectFit:"cover", borderRadius:8, border:"1px solid #221e18" }} />
+          <button onClick={() => setImages(prev => prev.filter((_,j)=>j!==i))}
+            style={{ position:"absolute", top:-6, right:-6, background:"#ff6b6b",
+              border:"none", borderRadius:"50%", width:18, height:18,
+              cursor:"pointer", color:"white", fontSize:11 }}>×</button>
+        </div>
+      ))}
+    </div>
+  )}
+</F>
+
+
       <F label="Ikon">
         <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
           {ICONS.map(ic => (
