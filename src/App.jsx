@@ -100,6 +100,53 @@ function Modal({ onClose, children }) {
   );
 }
 
+// ─── TOAST NOTIFICATION ───────────────────────────────────────────────────────
+function Toast({ message, type = "error", onClose }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 4500);
+    return () => clearTimeout(t);
+  }, [onClose]);
+
+  const colors = {
+    error: { bg:"#2a0f0f", border:"#ff9e7e40", text:"#ff9e7e" },
+    success: { bg:"#0f2a14", border:"#7effa040", text:"#7effa0" },
+    info: { bg:"#0f1a2a", border:"#7ec4ff40", text:"#7ec4ff" },
+  };
+  const c = colors[type] || colors.error;
+
+  return (
+    <div style={{
+      position:"fixed", bottom:28, right:28, zIndex:9999,
+      background:c.bg, border:`1px solid ${c.border}`,
+      borderRadius:10, padding:"14px 20px", maxWidth:360,
+      boxShadow:"0 8px 32px #00000060",
+      animation:"slideUp .25s ease",
+      display:"flex", alignItems:"flex-start", gap:12
+    }}>
+      <span style={{ color:c.text, fontSize:16, flexShrink:0 }}>
+        {type === "success" ? "✓" : type === "info" ? "ℹ" : "✕"}
+      </span>
+      <p style={{ color:c.text, fontFamily:"'DM Mono',monospace", fontSize:12, lineHeight:1.6, flex:1 }}>{message}</p>
+      <button onClick={onClose} style={{ background:"none", border:"none", color:c.text, cursor:"pointer", fontSize:14, opacity:.5, flexShrink:0, padding:0 }}>×</button>
+    </div>
+  );
+}
+
+function useToast() {
+  const [toasts, setToasts] = useState([]);
+  const show = (message, type = "error") => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+  };
+  const remove = (id) => setToasts(prev => prev.filter(t => t.id !== id));
+  const ToastContainer = () => (
+    <div style={{ position:"fixed", bottom:28, right:28, zIndex:9999, display:"flex", flexDirection:"column", gap:10 }}>
+      {toasts.map(t => <Toast key={t.id} message={t.message} type={t.type} onClose={() => remove(t.id)} />)}
+    </div>
+  );
+  return { show, ToastContainer };
+}
+
 const COND = { mint:"Bontatlan/Mint", excellent:"Kiváló", good:"Jó", fair:"Közepes" };
 const COND_COLOR = { mint:"#7effa0", excellent:"#7ed4ff", good:"#ffd97e", fair:"#ff9e7e" };
 const CATS = ["Összes","woody","oriental","floral","fresh","aromatic"];
@@ -632,29 +679,27 @@ function Messages({ curProfile, profiles, activeChatWith, setActiveChatWith }) {
     setChat(data || []);
   }
 
-async function send() {
-  if (!newMsg.trim() || !activeChatWith) return;
-  await supabase.from("messages").insert({
-    from_user: curProfile.id, to_user: activeChatWith, text: newMsg.trim()
-  });
-
-  // Email értesítés küldése
-  const toUser = profiles[activeChatWith];
-  if (toUser?.email) {
-    await supabase.functions.invoke("send-message-email", {
-      body: {
-        to_email: toUser.email,
-        to_name: toUser.name,
-        from_name: curProfile.name,
-        message_text: newMsg.trim()
-      }
+  async function send() {
+    if (!newMsg.trim() || !activeChatWith) return;
+    await supabase.from("messages").insert({
+      from_user: curProfile.id, to_user: activeChatWith, text: newMsg.trim()
     });
+
+    const toUser = profiles[activeChatWith];
+    if (toUser?.email) {
+      await supabase.functions.invoke("send-message-email", {
+        body: {
+          to_email: toUser.email,
+          to_name: toUser.name,
+          from_name: curProfile.name,
+          message_text: newMsg.trim()
+        }
+      });
+    }
+
+    setNewMsg("");
+    loadChat(activeChatWith);
   }
-
-  setNewMsg("");
-  loadChat(activeChatWith);
-}
-
 
   return (
     <div style={{ paddingTop:58, height:"100vh", display:"flex" }}>
@@ -735,77 +780,97 @@ async function send() {
 }
 
 // ─── SELL ─────────────────────────────────────────────────────────────────────
-function Sell({ curProfile, go, setListings }) {
+function Sell({ curProfile, go, setListings, showToast }) {
   const [form, setForm] = useState({
     type:"sell", listing_type:"full", brand:"", name:"",
     size:"100ml", fill:90, condition:"excellent", price:"",
     decant_ml:5, category:"woody", description:"", tags:"", icon:"✨"
   });
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [images, setImages] = useState([]);
 
-const [images, setImages] = useState([]);
-const [imageUrls, setImageUrls] = useState([]);
-
-async function uploadImages(listingId) {
-  const urls = [];
-  for (const img of images) {
-    const ext = img.name.split(".").pop();
-    const path = `${curProfile.id}/${listingId}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage
-      .from("listing-images")
-      .upload(path, img);
-    if (!error) {
-      const { data } = supabase.storage
-        .from("listing-images")
-        .getPublicUrl(path);
-      urls.push(data.publicUrl);
-    }
+  // ── inline field-level validation highlight
+  function validate() {
+    const e = {};
+    if (!form.brand.trim()) e.brand = "A márka megadása kötelező";
+    if (!form.name.trim()) e.name = "A név megadása kötelező";
+    if (!form.price || Number(form.price) <= 0) e.price = "Adj meg érvényes árat";
+    if (!form.description.trim()) e.description = "Írj egy rövid leírást";
+    return e;
   }
-  return urls;
-}
 
+  async function uploadImages(listingId) {
+    const urls = [];
+    for (const img of images) {
+      const ext = img.name.split(".").pop();
+      const path = `${curProfile.id}/${listingId}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("listing-images").upload(path, img);
+      if (!error) {
+        const { data } = supabase.storage.from("listing-images").getPublicUrl(path);
+        urls.push(data.publicUrl);
+      }
+    }
+    return urls;
+  }
 
   async function submit() {
     if (!curProfile) { go("login"); return; }
-    if (!form.brand || !form.name || !form.price) { alert("Töltsd ki a kötelező mezőket!"); return; }
+    const e = validate();
+    if (Object.keys(e).length > 0) {
+      setErrors(e);
+      showToast("Töltsd ki a kötelező mezőket!", "error");
+      return;
+    }
+    setErrors({});
     setLoading(true);
-    const isDecant = form.listing_type==="decant";
+    const isDecant = form.listing_type === "decant";
     const { data, error } = await supabase.from("listings").insert({
       user_id: curProfile.id,
       type: form.type,
       listing_type: form.listing_type,
-      brand: form.brand,
-      name: form.name,
+      brand: form.brand.trim(),
+      name: form.name.trim(),
       size: isDecant ? null : form.size,
       fill: (!isDecant && form.type==="sell") ? Number(form.fill) : null,
       condition: (!isDecant && form.type==="sell") ? form.condition : null,
       price: Number(form.price),
       decant_ml: isDecant ? Number(form.decant_ml) : null,
-      description: form.description,
+      description: form.description.trim(),
       category: form.category,
       tags: form.tags.split(",").map(t=>t.trim()).filter(Boolean),
       icon: form.icon,
       views: 0, favorites: 0
     }).select().single();
-    if (error) { setLoading(false); alert("Hiba: " + error.message); return; }
+
+    if (error) {
+      setLoading(false);
+      showToast("Hiba a feltöltés során: " + error.message, "error");
+      return;
+    }
+
     if (images.length > 0) {
       const urls = await uploadImages(data.id);
       await supabase.from("listings").update({ image_urls: urls }).eq("id", data.id);
       data.image_urls = urls;
     }
+
     setLoading(false);
     setListings(prev => [data, ...prev]);
-    go("market");
-
-
+    showToast("Hirdetés sikeresen közzétéve!", "success");
+    setTimeout(() => go("market"), 900);
   }
 
+  const errStyle = { border:"1px solid #ff9e7e60" };
   const inp = { background:"#141009", border:"1px solid #221e18", color:"#f0e4cc",
     padding:"10px 14px", borderRadius:8, fontFamily:"'DM Mono',monospace", fontSize:12,
     width:"100%", boxSizing:"border-box", outline:"none" };
-  const F = ({label,children}) => (
+  const F = ({label, errKey, children}) => (
     <div style={{ marginBottom:18 }}>
-      <label style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"#4a3820", letterSpacing:2, display:"block", marginBottom:7, textTransform:"uppercase" }}>{label}</label>
+      <label style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color: errors[errKey] ? "#ff9e7e" : "#4a3820",
+        letterSpacing:2, display:"block", marginBottom:7, textTransform:"uppercase" }}>
+        {label}{errors[errKey] && <span style={{ marginLeft:8, textTransform:"none", letterSpacing:0 }}>— {errors[errKey]}</span>}
+      </label>
       {children}
     </div>
   );
@@ -840,8 +905,14 @@ async function uploadImages(listingId) {
       </F>
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-        <F label="Márka *"><input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})} placeholder="pl. Creed" style={inp} /></F>
-        <F label="Név *"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="pl. Aventus" style={inp} /></F>
+        <F label="Márka *" errKey="brand">
+          <input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}
+            placeholder="pl. Creed" style={{...inp, ...(errors.brand ? errStyle : {})}} />
+        </F>
+        <F label="Név *" errKey="name">
+          <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})}
+            placeholder="pl. Aventus" style={{...inp, ...(errors.name ? errStyle : {})}} />
+        </F>
         {form.listing_type==="full" && (
           <F label="Méret">
             <select value={form.size} onChange={e=>setForm({...form,size:e.target.value})} style={{...inp,cursor:"pointer"}}>
@@ -878,38 +949,41 @@ async function uploadImages(listingId) {
         </div>
       )}
 
-      <F label="Ár (Ft) *">
+      <F label="Ár (Ft) *" errKey="price">
         <input value={form.price} onChange={e=>setForm({...form,price:e.target.value})}
-          placeholder="pl. 35000" type="number" style={inp} />
+          placeholder="pl. 35000" type="number"
+          style={{...inp, ...(errors.price ? errStyle : {})}} />
       </F>
-      <F label="Leírás">
+
+      <F label="Leírás *" errKey="description">
         <textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})}
           rows={4} placeholder="Batch, állapot részletei, csere lehetőség..."
-          style={{...inp,resize:"vertical"}} />
+          style={{...inp, resize:"vertical", ...(errors.description ? errStyle : {})}} />
       </F>
+
       <F label="Tagek (vesszővel elválasztva)">
         <input value={form.tags} onChange={e=>setForm({...form,tags:e.target.value})} placeholder="creed, niche, woody" style={inp} />
       </F>
-<F label="Fotók (max 5)">
-  <input type="file" accept="image/*" multiple
-    onChange={e => setImages(Array.from(e.target.files).slice(0,5))}
-    style={{ color:"#c9952a", fontFamily:"'DM Mono',monospace", fontSize:12 }} />
-  {images.length > 0 && (
-    <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
-      {images.map((img,i) => (
-        <div key={i} style={{ position:"relative" }}>
-          <img src={URL.createObjectURL(img)}
-            style={{ width:80, height:80, objectFit:"cover", borderRadius:8, border:"1px solid #221e18" }} />
-          <button onClick={() => setImages(prev => prev.filter((_,j)=>j!==i))}
-            style={{ position:"absolute", top:-6, right:-6, background:"#ff6b6b",
-              border:"none", borderRadius:"50%", width:18, height:18,
-              cursor:"pointer", color:"white", fontSize:11 }}>×</button>
-        </div>
-      ))}
-    </div>
-  )}
-</F>
 
+      <F label="Fotók (max 5)">
+        <input type="file" accept="image/*" multiple
+          onChange={e => setImages(Array.from(e.target.files).slice(0,5))}
+          style={{ color:"#c9952a", fontFamily:"'DM Mono',monospace", fontSize:12 }} />
+        {images.length > 0 && (
+          <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+            {images.map((img,i) => (
+              <div key={i} style={{ position:"relative" }}>
+                <img src={URL.createObjectURL(img)}
+                  style={{ width:80, height:80, objectFit:"cover", borderRadius:8, border:"1px solid #221e18" }} />
+                <button onClick={() => setImages(prev => prev.filter((_,j)=>j!==i))}
+                  style={{ position:"absolute", top:-6, right:-6, background:"#ff6b6b",
+                    border:"none", borderRadius:"50%", width:18, height:18,
+                    cursor:"pointer", color:"white", fontSize:11 }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </F>
 
       <F label="Ikon">
         <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
@@ -934,41 +1008,118 @@ async function uploadImages(listingId) {
 }
 
 // ─── LOGIN / REGISTER ─────────────────────────────────────────────────────────
-function Login({ go }) {
+function Login({ go, showToast }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
+  // "idle" | "confirm" — after successful register, show confirmation screen
+  const [regState, setRegState] = useState("idle");
+
+  function validateEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
 
   async function doLogin() {
-    setLoading(true); setMsg("");
+    if (!validateEmail(email)) { showToast("Adj meg érvényes email címet!", "error"); return; }
+    if (pass.length < 6) { showToast("A jelszónak legalább 6 karakter kell!", "error"); return; }
+    setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
     setLoading(false);
-    if (error) setMsg("Hibás email vagy jelszó.");
-    else go("home");
+    if (error) {
+      if (error.message.includes("Invalid login") || error.message.includes("invalid_credentials")) {
+        showToast("Hibás email cím vagy jelszó.", "error");
+      } else if (error.message.includes("Email not confirmed")) {
+        showToast("Erősítsd meg az email címed a bejelentkezés előtt!", "info");
+      } else {
+        showToast(error.message, "error");
+      }
+    } else {
+      go("home");
+    }
   }
 
   async function doRegister() {
-    if (!name) { setMsg("Add meg a neved!"); return; }
-    setLoading(true); setMsg("");
-    const { data, error } = await supabase.auth.signUp({ email, password: pass });
-    if (error) { setMsg(error.message); setLoading(false); return; }
-    if (data.user) {
-await supabase.from("profiles").insert({
-  id: data.user.id, name, location, email, bio: "", verified: false, rating: 0, rating_count: 0, sales: 0
-});
+    if (!name.trim()) { showToast("Add meg a neved!", "error"); return; }
+    if (!validateEmail(email)) { showToast("Adj meg érvényes email címet!", "error"); return; }
+    if (pass.length < 6) { showToast("A jelszónak legalább 6 karakter kell!", "error"); return; }
+    setLoading(true);
 
+    // Check if email already exists by attempting sign-in first (avoids leaking info)
+    const { data: signUpData, error } = await supabase.auth.signUp({
+      email,
+      password: pass,
+      options: {
+        data: { name, location }
+      }
+    });
+
+    if (error) {
+      setLoading(false);
+      if (error.message.includes("already registered") || error.message.includes("User already registered")) {
+        showToast("Ez az email cím már regisztrált. Lépj be!", "error");
+      } else {
+        showToast(error.message, "error");
+      }
+      return;
     }
-    setLoading(false);
-    setMsg("✉ Erősítsd meg az emailben! Utána lépj be.");
+
+    // If session exists immediately → email confirmation is OFF in Supabase
+    if (signUpData.session) {
+      // Create profile and go home
+      await supabase.from("profiles").upsert({
+        id: signUpData.user.id, name: name.trim(), location: location.trim(),
+        email, bio: "", verified: false, rating: 0, rating_count: 0, sales: 0
+      });
+      setLoading(false);
+      showToast("Sikeres regisztráció! Üdv a Scentrade-n!", "success");
+      go("home");
+    } else {
+      // Email confirmation is ON — create profile optimistically, show confirm screen
+      if (signUpData.user) {
+        await supabase.from("profiles").upsert({
+          id: signUpData.user.id, name: name.trim(), location: location.trim(),
+          email, bio: "", verified: false, rating: 0, rating_count: 0, sales: 0
+        });
+      }
+      setLoading(false);
+      setRegState("confirm");
+    }
   }
 
   const inp = { background:"#141009", border:"1px solid #221e18", color:"#f0e4cc",
     padding:"12px 16px", borderRadius:8, fontFamily:"'DM Mono',monospace", fontSize:12,
     width:"100%", boxSizing:"border-box", outline:"none", marginBottom:12 };
+
+  // ── Email confirmation screen
+  if (regState === "confirm") {
+    return (
+      <div style={{ paddingTop:58, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ background:"#0f0d09", border:"1px solid #1a1610", borderRadius:16,
+          padding:"52px 44px", width:420, textAlign:"center", boxShadow:"0 24px 80px #00000060" }}>
+          <div style={{ fontSize:52, marginBottom:20 }}>✉</div>
+          <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:28, color:"#f0e4cc", fontWeight:400, marginBottom:14 }}>
+            Erősítsd meg az email címed
+          </h2>
+          <p style={{ color:"#6a5a40", fontFamily:"'DM Mono',monospace", fontSize:12, lineHeight:1.9, marginBottom:28 }}>
+            Küldtünk egy megerősítő linket ide:<br />
+            <span style={{ color:"#c9952a" }}>{email}</span><br /><br />
+            Klikkelj a linkre, majd gyere vissza és lépj be!
+          </p>
+          <button onClick={() => { setMode("login"); setRegState("idle"); }} style={{
+            background:"linear-gradient(135deg,#c9952a,#7a5810)", border:"none",
+            color:"#0d0b08", padding:"13px", width:"100%", borderRadius:8, cursor:"pointer",
+            fontFamily:"'Playfair Display',serif", fontSize:16, fontWeight:700, marginBottom:12 }}>
+            Bejelentkezéshez →
+          </button>
+          <p style={{ color:"#3a3020", fontSize:11, fontFamily:"'DM Mono',monospace", cursor:"pointer" }}
+            onClick={() => setRegState("idle")}>
+            Vissza a regisztrációhoz
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ paddingTop:58, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -980,22 +1131,27 @@ await supabase.from("profiles").insert({
             {mode==="login" ? "Belépés" : "Regisztráció"}
           </h2>
         </div>
-        {mode==="register" && <>
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Teljes név *" style={inp} />
-          <input value={location} onChange={e=>setLocation(e.target.value)} placeholder="Helyszín (pl. Budapest)" style={inp} />
-        </>}
+        {mode==="register" && (
+          <>
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Teljes név *" style={inp} />
+            <input value={location} onChange={e=>setLocation(e.target.value)} placeholder="Helyszín (pl. Budapest)" style={inp} />
+          </>
+        )}
         <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email cím *" type="email" style={inp} />
-        <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Jelszó * (min. 6 karakter)" type="password" style={inp} />
-        {msg && <p style={{ color: msg.startsWith("✉") ? "#7effa0" : "#ff9e7e", fontFamily:"'DM Mono',monospace", fontSize:11, marginBottom:12, textAlign:"center" }}>{msg}</p>}
-        <button onClick={mode==="login"?doLogin:doRegister} disabled={loading} style={{
+        <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Jelszó * (min. 6 karakter)" type="password"
+          onKeyDown={e => e.key==="Enter" && (mode==="login" ? doLogin() : doRegister())}
+          style={inp} />
+
+        <button onClick={mode==="login" ? doLogin : doRegister} disabled={loading} style={{
           background:"linear-gradient(135deg,#c9952a,#7a5810)", border:"none",
           color:"#0d0b08", padding:"14px", width:"100%", borderRadius:8, cursor:"pointer",
           fontFamily:"'Playfair Display',serif", fontSize:18, fontWeight:700,
           marginBottom:14, opacity:loading?0.6:1 }}>
           {loading ? "..." : mode==="login" ? "Belépés →" : "Regisztráció →"}
         </button>
+
         <p style={{ color:"#3a3020", fontSize:12, fontFamily:"'DM Mono',monospace", textAlign:"center", cursor:"pointer" }}
-          onClick={() => { setMode(m=>m==="login"?"register":"login"); setMsg(""); }}>
+          onClick={() => { setMode(m=>m==="login"?"register":"login"); }}>
           {mode==="login" ? "Még nincs fiókod? Regisztrálj" : "Már van fiókod? Lépj be"}
         </p>
       </div>
@@ -1013,6 +1169,7 @@ export default function App() {
   const [profileId, setProfileId] = useState(null);
   const [activeChatWith, setActiveChatWith] = useState(null);
   const [unread, setUnread] = useState(0);
+  const { show: showToast, ToastContainer } = useToast();
 
   useEffect(() => { loadListings(); }, []);
   useEffect(() => { if (profile) loadUnread(); }, [profile]);
@@ -1069,9 +1226,11 @@ export default function App() {
         select option{background:#141009;color:#f0e4cc;}
         button{transition:opacity .15s;}
         button:hover{opacity:.88;}
+        @keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
       `}</style>
 
       <Nav profile={profile} page={page} go={go} openLogin={() => go("login")} unreadCount={unread} />
+      <ToastContainer />
 
       {page==="home" && <Home go={go} listings={listings} profiles={allProfiles} />}
       {page==="market" && <Market listings={listings} profiles={allProfiles} go={go} setSelId={setSelId} />}
@@ -1092,9 +1251,9 @@ export default function App() {
           activeChatWith={activeChatWith} setActiveChatWith={setActiveChatWith} />
       )}
       {page==="sell" && (
-        <Sell curProfile={profile} go={go} setListings={setListings} />
+        <Sell curProfile={profile} go={go} setListings={setListings} showToast={showToast} />
       )}
-      {page==="login" && <Login go={go} />}
+      {page==="login" && <Login go={go} showToast={showToast} />}
     </div>
   );
 }
