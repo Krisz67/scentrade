@@ -632,14 +632,29 @@ function Messages({ curProfile, profiles, activeChatWith, setActiveChatWith }) {
     setChat(data || []);
   }
 
-  async function send() {
-    if (!newMsg.trim() || !activeChatWith) return;
-    await supabase.from("messages").insert({
-      from_user: curProfile.id, to_user: activeChatWith, text: newMsg.trim()
+async function send() {
+  if (!newMsg.trim() || !activeChatWith) return;
+  await supabase.from("messages").insert({
+    from_user: curProfile.id, to_user: activeChatWith, text: newMsg.trim()
+  });
+
+  // Email értesítés küldése
+  const toUser = profiles[activeChatWith];
+  if (toUser?.email) {
+    await supabase.functions.invoke("send-message-email", {
+      body: {
+        to_email: toUser.email,
+        to_name: toUser.name,
+        from_name: curProfile.name,
+        message_text: newMsg.trim()
+      }
     });
-    setNewMsg("");
-    loadChat(activeChatWith);
   }
+
+  setNewMsg("");
+  loadChat(activeChatWith);
+}
+
 
   return (
     <div style={{ paddingTop:58, height:"100vh", display:"flex" }}>
@@ -772,15 +787,16 @@ async function uploadImages(listingId) {
       icon: form.icon,
       views: 0, favorites: 0
     }).select().single();
+    if (error) { setLoading(false); alert("Hiba: " + error.message); return; }
+    if (images.length > 0) {
+      const urls = await uploadImages(data.id);
+      await supabase.from("listings").update({ image_urls: urls }).eq("id", data.id);
+      data.image_urls = urls;
+    }
     setLoading(false);
-    if (error) { alert("Hiba: " + error.message); return; }
-   if (images.length > 0) {
-  const urls = await uploadImages(data.id);
-  await supabase.from("listings").update({ image_urls: urls }).eq("id", data.id);
-  data.image_urls = urls;
-}
-setListings(prev => [data, ...prev]);
-go("market");
+    setListings(prev => [data, ...prev]);
+    go("market");
+
 
   }
 
@@ -941,9 +957,10 @@ function Login({ go }) {
     const { data, error } = await supabase.auth.signUp({ email, password: pass });
     if (error) { setMsg(error.message); setLoading(false); return; }
     if (data.user) {
-      await supabase.from("profiles").insert({
-        id: data.user.id, name, location, bio: "", verified: false, rating: 0, rating_count: 0, sales: 0
-      });
+await supabase.from("profiles").insert({
+  id: data.user.id, name, location, email, bio: "", verified: false, rating: 0, rating_count: 0, sales: 0
+});
+
     }
     setLoading(false);
     setMsg("✉ Erősítsd meg az emailben! Utána lépj be.");
