@@ -8,16 +8,19 @@ function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // persistSession: true by default in Supabase JS v2 – session is stored in localStorage automatically
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) fetchProfile(session.user.id);
       else setLoading(false);
     });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) fetchProfile(session.user.id);
       else { setProfile(null); setLoading(false); }
     });
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -116,7 +119,6 @@ function Toast({ message, type = "error", onClose }) {
 
   return (
     <div style={{
-      position:"fixed", bottom:28, right:28, zIndex:9999,
       background:c.bg, border:`1px solid ${c.border}`,
       borderRadius:10, padding:"14px 20px", maxWidth:360,
       boxShadow:"0 8px 32px #00000060",
@@ -790,7 +792,6 @@ function Sell({ curProfile, go, setListings, showToast }) {
   const [errors, setErrors] = useState({});
   const [images, setImages] = useState([]);
 
-  // ── inline field-level validation highlight
   function validate() {
     const e = {};
     if (!form.brand.trim()) e.brand = "A márka megadása kötelező";
@@ -1007,16 +1008,57 @@ function Sell({ curProfile, go, setListings, showToast }) {
   );
 }
 
+// ─── GUEST WALL — hirdetés feladás blokkolva bejelentkezés nélkül ─────────────
+function GuestWall({ go }) {
+  return (
+    <div style={{ paddingTop:58, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:"#0f0d09", border:"1px solid #c9952a20", borderRadius:20,
+        padding:"60px 48px", maxWidth:460, textAlign:"center",
+        boxShadow:"0 24px 80px #00000060" }}>
+        <div style={{ fontSize:52, marginBottom:20 }}>🔒</div>
+        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:30, color:"#f0e4cc",
+          fontWeight:400, marginBottom:14 }}>Belépés szükséges</h2>
+        <p style={{ color:"#5a4830", fontFamily:"'DM Mono',monospace", fontSize:12,
+          lineHeight:1.9, marginBottom:32 }}>
+          Hirdetés feladásához be kell jelentkezned.<br />
+          A piacot vendégként is böngészheted.
+        </p>
+        <button onClick={() => go("login")} style={{
+          background:"linear-gradient(135deg,#c9952a,#7a5810)", border:"none",
+          color:"#0d0b08", padding:"14px 36px", borderRadius:8, cursor:"pointer",
+          fontFamily:"'Playfair Display',serif", fontSize:17, fontWeight:700, marginBottom:14,
+          width:"100%" }}>
+          Belépés / Regisztráció →
+        </button>
+        <button onClick={() => go("market")} style={{
+          background:"transparent", border:"1px solid #2a2218",
+          color:"#4a3820", padding:"12px 36px", borderRadius:8, cursor:"pointer",
+          fontFamily:"'DM Mono',monospace", fontSize:11, letterSpacing:1, width:"100%" }}>
+          VISSZA A PIACRA
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── LOGIN / REGISTER ─────────────────────────────────────────────────────────
 function Login({ go, showToast }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
+  const [passConfirm, setPassConfirm] = useState("");
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
+  const [tosAccepted, setTosAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
-  // "idle" | "confirm" — after successful register, show confirmation screen
-  const [regState, setRegState] = useState("idle");
+  const [regState, setRegState] = useState("idle"); // "idle" | "confirm"
+
+  // Reset fields when switching mode
+  function switchMode(m) {
+    setMode(m);
+    setEmail(""); setPass(""); setPassConfirm(""); setName(""); setLocation("");
+    setTosAccepted(false);
+  }
 
   function validateEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
 
@@ -1040,18 +1082,19 @@ function Login({ go, showToast }) {
   }
 
   async function doRegister() {
-    if (!name.trim()) { showToast("Add meg a neved!", "error"); return; }
+    // ── Validation
+    if (!name.trim()) { showToast("Add meg a felhasználóneved!", "error"); return; }
     if (!validateEmail(email)) { showToast("Adj meg érvényes email címet!", "error"); return; }
     if (pass.length < 6) { showToast("A jelszónak legalább 6 karakter kell!", "error"); return; }
+    if (pass !== passConfirm) { showToast("A két jelszó nem egyezik!", "error"); return; }
+    if (!tosAccepted) { showToast("El kell fogadnod az ÁSZF-et és az Adatkezelési tájékoztatót!", "error"); return; }
+
     setLoading(true);
 
-    // Check if email already exists by attempting sign-in first (avoids leaking info)
     const { data: signUpData, error } = await supabase.auth.signUp({
       email,
       password: pass,
-      options: {
-        data: { name, location }
-      }
+      options: { data: { name, location } }
     });
 
     if (error) {
@@ -1064,18 +1107,17 @@ function Login({ go, showToast }) {
       return;
     }
 
-    // If session exists immediately → email confirmation is OFF in Supabase
+    // Email confirmation OFF → session immediate
     if (signUpData.session) {
-      // Create profile and go home
       await supabase.from("profiles").upsert({
         id: signUpData.user.id, name: name.trim(), location: location.trim(),
         email, bio: "", verified: false, rating: 0, rating_count: 0, sales: 0
       });
       setLoading(false);
       showToast("Sikeres regisztráció! Üdv a Scentrade-n!", "success");
-      go("home");
+      setTimeout(() => window.location.reload(), 900);
     } else {
-      // Email confirmation is ON — create profile optimistically, show confirm screen
+      // Email confirmation ON
       if (signUpData.user) {
         await supabase.from("profiles").upsert({
           id: signUpData.user.id, name: name.trim(), location: location.trim(),
@@ -1089,9 +1131,9 @@ function Login({ go, showToast }) {
 
   const inp = { background:"#141009", border:"1px solid #221e18", color:"#f0e4cc",
     padding:"12px 16px", borderRadius:8, fontFamily:"'DM Mono',monospace", fontSize:12,
-    width:"100%", boxSizing:"border-box", outline:"none", marginBottom:12 };
+    width:"100%", boxSizing:"border-box", outline:"none", marginBottom:10 };
 
-  // ── Email confirmation screen
+  // ── Email confirm screen
   if (regState === "confirm") {
     return (
       <div style={{ paddingTop:58, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -1122,37 +1164,132 @@ function Login({ go, showToast }) {
   }
 
   return (
-    <div style={{ paddingTop:58, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <div style={{ paddingTop:58, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:"80px 20px" }}>
       <div style={{ background:"#0f0d09", border:"1px solid #1a1610", borderRadius:16,
-        padding:"52px 44px", width:420, boxShadow:"0 24px 80px #00000060" }}>
+        padding:"52px 44px", width:"100%", maxWidth:440, boxShadow:"0 24px 80px #00000060" }}>
+
+        {/* ── Header */}
         <div style={{ textAlign:"center", marginBottom:36 }}>
           <span style={{ fontSize:38, color:"#c9952a" }}>◈</span>
           <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:32, color:"#f0e4cc", fontWeight:400, marginTop:10 }}>
             {mode==="login" ? "Belépés" : "Regisztráció"}
           </h2>
         </div>
+
+        {/* ── Mode tabs */}
+        <div style={{ display:"flex", background:"#0a0806", borderRadius:8, padding:3, marginBottom:28 }}>
+          {[["login","Belépés"],["register","Regisztráció"]].map(([m,l]) => (
+            <button key={m} onClick={() => switchMode(m)} style={{
+              flex:1, padding:"8px", borderRadius:6, border:"none", cursor:"pointer",
+              background:mode===m?"#1a1508":"transparent",
+              color:mode===m?"#c9952a":"#3a3020",
+              fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:1,
+              transition:"all .15s" }}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Register-only fields */}
         {mode==="register" && (
           <>
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Teljes név *" style={inp} />
-            <input value={location} onChange={e=>setLocation(e.target.value)} placeholder="Helyszín (pl. Budapest)" style={inp} />
+            <div style={{ marginBottom:4 }}>
+              <label style={{ fontFamily:"'DM Mono',monospace", fontSize:9, color:"#3a3020", letterSpacing:2, display:"block", marginBottom:6 }}>FELHASZNÁLÓNÉV *</label>
+              <input value={name} onChange={e=>setName(e.target.value)}
+                placeholder="pl. illatmester_bp" style={inp} />
+            </div>
+            <div style={{ marginBottom:4 }}>
+              <label style={{ fontFamily:"'DM Mono',monospace", fontSize:9, color:"#3a3020", letterSpacing:2, display:"block", marginBottom:6 }}>HELYSZÍN</label>
+              <input value={location} onChange={e=>setLocation(e.target.value)}
+                placeholder="pl. Budapest" style={inp} />
+            </div>
           </>
         )}
-        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email cím *" type="email" style={inp} />
-        <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Jelszó * (min. 6 karakter)" type="password"
-          onKeyDown={e => e.key==="Enter" && (mode==="login" ? doLogin() : doRegister())}
-          style={inp} />
 
-        <button onClick={mode==="login" ? doLogin : doRegister} disabled={loading} style={{
-          background:"linear-gradient(135deg,#c9952a,#7a5810)", border:"none",
-          color:"#0d0b08", padding:"14px", width:"100%", borderRadius:8, cursor:"pointer",
-          fontFamily:"'Playfair Display',serif", fontSize:18, fontWeight:700,
-          marginBottom:14, opacity:loading?0.6:1 }}>
+        {/* ── Common fields */}
+        <div style={{ marginBottom:4 }}>
+          <label style={{ fontFamily:"'DM Mono',monospace", fontSize:9, color:"#3a3020", letterSpacing:2, display:"block", marginBottom:6 }}>EMAIL CÍM *</label>
+          <input value={email} onChange={e=>setEmail(e.target.value)}
+            placeholder="pelda@email.hu" type="email" style={inp} />
+        </div>
+
+        <div style={{ marginBottom:4 }}>
+          <label style={{ fontFamily:"'DM Mono',monospace", fontSize:9, color:"#3a3020", letterSpacing:2, display:"block", marginBottom:6 }}>JELSZÓ * <span style={{ color:"#2a2018", letterSpacing:0, textTransform:"none" }}>(min. 6 karakter)</span></label>
+          <input value={pass} onChange={e=>setPass(e.target.value)}
+            placeholder="••••••••" type="password"
+            onKeyDown={e => e.key==="Enter" && mode==="login" && doLogin()}
+            style={inp} />
+        </div>
+
+        {/* ── Register: password confirm */}
+        {mode==="register" && (
+          <div style={{ marginBottom:4 }}>
+            <label style={{ fontFamily:"'DM Mono',monospace", fontSize:9, color:"#3a3020", letterSpacing:2, display:"block", marginBottom:6 }}>JELSZÓ MÉGEGYSZER *</label>
+            <input value={passConfirm} onChange={e=>setPassConfirm(e.target.value)}
+              placeholder="••••••••" type="password"
+              onKeyDown={e => e.key==="Enter" && doRegister()}
+              style={{
+                ...inp,
+                border: passConfirm && passConfirm !== pass ? "1px solid #ff9e7e60" : "1px solid #221e18",
+                marginBottom: 0
+              }} />
+            {passConfirm && passConfirm !== pass && (
+              <p style={{ color:"#ff9e7e", fontFamily:"'DM Mono',monospace", fontSize:10, marginTop:5, marginBottom:0 }}>
+                A jelszavak nem egyeznek
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ── Register: ToS checkbox */}
+        {mode==="register" && (
+          <div style={{ marginTop:18, marginBottom:24 }}>
+            <label style={{ display:"flex", gap:12, alignItems:"flex-start", cursor:"pointer" }}>
+              {/* Custom checkbox */}
+              <div onClick={() => setTosAccepted(v=>!v)} style={{
+                width:18, height:18, borderRadius:4, flexShrink:0, marginTop:1,
+                background: tosAccepted ? "#c9952a" : "#141009",
+                border: `1.5px solid ${tosAccepted ? "#c9952a" : "#3a3020"}`,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                cursor:"pointer", transition:"all .15s" }}>
+                {tosAccepted && <span style={{ color:"#0d0b08", fontSize:11, fontWeight:700, lineHeight:1 }}>✓</span>}
+              </div>
+              <span style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:"#4a3820", lineHeight:1.7 }}>
+                Elolvastam és elfogadom az{" "}
+                <a href="#aszf" onClick={e=>e.stopPropagation()}
+                  style={{ color:"#c9952a", textDecoration:"underline" }}>ÁSZF</a>
+                {"-t és az "}
+                <a href="#adatkezeles" onClick={e=>e.stopPropagation()}
+                  style={{ color:"#c9952a", textDecoration:"underline" }}>Adatkezelési tájékoztatót</a>
+                . *
+              </span>
+            </label>
+          </div>
+        )}
+
+        {/* ── Submit */}
+        <button
+          onClick={mode==="login" ? doLogin : doRegister}
+          disabled={loading || (mode==="register" && !tosAccepted)}
+          style={{
+            background: (mode==="register" && !tosAccepted)
+              ? "linear-gradient(135deg,#5a4510,#3a2a08)"
+              : "linear-gradient(135deg,#c9952a,#7a5810)",
+            border:"none",
+            color:"#0d0b08", padding:"14px", width:"100%", borderRadius:8,
+            cursor: (mode==="register" && !tosAccepted) ? "not-allowed" : "pointer",
+            fontFamily:"'Playfair Display',serif", fontSize:18, fontWeight:700,
+            marginBottom:14, marginTop: mode==="login" ? 14 : 0,
+            opacity: loading ? 0.6 : 1,
+            transition:"all .2s" }}>
           {loading ? "..." : mode==="login" ? "Belépés →" : "Regisztráció →"}
         </button>
 
-        <p style={{ color:"#3a3020", fontSize:12, fontFamily:"'DM Mono',monospace", textAlign:"center", cursor:"pointer" }}
-          onClick={() => { setMode(m=>m==="login"?"register":"login"); }}>
-          {mode==="login" ? "Még nincs fiókod? Regisztrálj" : "Már van fiókod? Lépj be"}
+        {/* ── Switch link */}
+        <p style={{ color:"#2a2018", fontSize:11, fontFamily:"'DM Mono',monospace", textAlign:"center",
+          cursor:"pointer", letterSpacing:1 }}
+          onClick={() => switchMode(mode==="login" ? "register" : "login")}>
+          {mode==="login" ? "MÉG NINCS FIÓKOD? → REGISZTRÁLJ" : "MÁR VAN FIÓKOD? → LÉPJ BE"}
         </p>
       </div>
     </div>
@@ -1201,7 +1338,16 @@ export default function App() {
     setPage("home");
   }
 
-  function go(p) { setPage(p); window.scrollTo(0,0); }
+  function go(p) {
+    // Guard: hirdetés feladás csak bejelentkezve
+    if (p === "sell" && !profile) {
+      setPage("guest_wall");
+      window.scrollTo(0,0);
+      return;
+    }
+    setPage(p);
+    window.scrollTo(0,0);
+  }
 
   const selListing = listings.find(l=>l.id===selId);
   const profileUser = profileId ? profiles[profileId] : null;
@@ -1209,7 +1355,7 @@ export default function App() {
 
   if (loading) return (
     <div style={{ background:"#0a0806", minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <span style={{ color:"#c9952a", fontFamily:"'Playfair Display',serif", fontSize:24 }}>◈</span>
+      <span style={{ color:"#c9952a", fontFamily:"'Playfair Display',serif", fontSize:24, animation:"pulse 1.2s ease infinite" }}>◈</span>
     </div>
   );
 
@@ -1227,6 +1373,8 @@ export default function App() {
         button{transition:opacity .15s;}
         button:hover{opacity:.88;}
         @keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+        a{color:inherit;}
       `}</style>
 
       <Nav profile={profile} page={page} go={go} openLogin={() => go("login")} unreadCount={unread} />
@@ -1250,8 +1398,11 @@ export default function App() {
         <Messages curProfile={profile} profiles={allProfiles}
           activeChatWith={activeChatWith} setActiveChatWith={setActiveChatWith} />
       )}
-      {page==="sell" && (
+      {page==="sell" && profile && (
         <Sell curProfile={profile} go={go} setListings={setListings} showToast={showToast} />
+      )}
+      {page==="guest_wall" && (
+        <GuestWall go={go} />
       )}
       {page==="login" && <Login go={go} showToast={showToast} />}
     </div>
