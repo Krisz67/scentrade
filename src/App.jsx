@@ -1378,11 +1378,11 @@ export default function App() {
       `}</style>
 
       <<Nav 
-  profile={profile || (user ? { name: user.email } : null)} 
-  page={page} 
-  go={go} 
-  openLogin={() => go("login")} 
-  unreadCount={unread} 
+        profile={profile || (user ? { name: user.email } : null)} 
+        page={page} 
+        go={go} 
+        openLogin={() => go("login")} 
+        unreadCount={unread} 
 />
 >
       <ToastContainer />
