@@ -1377,7 +1377,14 @@ export default function App() {
         a{color:inherit;}
       `}</style>
 
-      <Nav profile={profile} page={page} go={go} openLogin={() => go("login")} unreadCount={unread} />
+      <<Nav 
+  profile={profile || (user ? { name: user.email } : null)} 
+  page={page} 
+  go={go} 
+  openLogin={() => go("login")} 
+  unreadCount={unread} 
+/>
+>
       <ToastContainer />
 
       {page==="home" && <Home go={go} listings={listings} profiles={allProfiles} />}
