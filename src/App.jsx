@@ -643,112 +643,229 @@ function Profile({ pu, curProfile, go, listings, setActiveChatWith, onSignOut })
 }
 
 // ─── MESSAGES ─────────────────────────────────────────────────────────────────
-function Messages({ curProfile, profiles, activeChatWith, setActiveChatWith }) {
-  const [convs,setConvs]=useState([]); const [chat,setChat]=useState([]); const [newMsg,setNewMsg]=useState("");
-  const bottomRef=useRef(null);
-  useEffect(()=>{
-    if(!curProfile?.id)return;
+function Messages({ curProfile, activeChatWith, setActiveChatWith }) {
+  const [convs, setConvs]           = useState([]);
+  const [partnerProfiles, setPartnerProfiles] = useState({});
+  const [chat, setChat]             = useState([]);
+  const [newMsg, setNewMsg]         = useState("");
+  // Mobile: lista vagy chat nézet
+  const [mobileView, setMobileView] = useState("list"); // "list" | "chat"
+  const bottomRef = useRef(null);
+  const inputRef  = useRef(null);
+
+  useEffect(() => {
+    if (!curProfile?.id) return;
     loadConvs();
-    const sub=supabase.channel("msg-rt-"+curProfile.id)
-      .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:`to_user=eq.${curProfile.id}`},payload=>{
-        if(activeChatWith===payload.new.from_user){supabase.from("messages").update({read:true,read_at:new Date().toISOString()}).eq("id",payload.new.id).then(()=>loadChat(activeChatWith));}
-        else loadConvs();
-      })
-      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"messages",filter:`from_user=eq.${curProfile.id}`},()=>{if(activeChatWith)loadChat(activeChatWith);})
+    const sub = supabase.channel("msg-rt-" + curProfile.id)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `to_user=eq.${curProfile.id}` },
+        payload => {
+          if (activeChatWith === payload.new.from_user) {
+            supabase.from("messages").update({ read: true, read_at: new Date().toISOString() }).eq("id", payload.new.id)
+              .then(() => loadChat(activeChatWith));
+          } else {
+            loadConvs();
+          }
+        })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `from_user=eq.${curProfile.id}` },
+        () => { if (activeChatWith) loadChat(activeChatWith); })
       .subscribe();
-    return ()=>supabase.removeChannel(sub);
-  },[curProfile?.id,activeChatWith]);
-  useEffect(()=>{if(activeChatWith)loadChat(activeChatWith);},[activeChatWith]);
-  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[chat]);
+    return () => supabase.removeChannel(sub);
+  }, [curProfile?.id, activeChatWith]);
+
+  useEffect(() => { if (activeChatWith) loadChat(activeChatWith); }, [activeChatWith]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat]);
 
   async function loadConvs() {
-    const {data}=await supabase.from("messages").select("*").or(`from_user.eq.${curProfile.id},to_user.eq.${curProfile.id}`).order("created_at",{ascending:false});
-    if(!data)return;
-    const seen=new Set(),cs=[];
-    data.forEach(m=>{const p=m.from_user===curProfile.id?m.to_user:m.from_user;if(!seen.has(p)){seen.add(p);cs.push({partnerId:p,lastMsg:m});}});
+    const { data } = await supabase.from("messages").select("*")
+      .or(`from_user.eq.${curProfile.id},to_user.eq.${curProfile.id}`)
+      .order("created_at", { ascending: false });
+    if (!data) return;
+
+    // Partner ID-k összegyűjtése
+    const seen = new Set(), cs = [];
+    data.forEach(m => {
+      const p = m.from_user === curProfile.id ? m.to_user : m.from_user;
+      if (!seen.has(p)) { seen.add(p); cs.push({ partnerId: p, lastMsg: m }); }
+    });
     setConvs(cs);
+
+    // Partner profilok betöltése – NEM a hirdetések map-ből, hanem közvetlenül
+    const ids = [...seen];
+    if (ids.length > 0) {
+      const { data: pd } = await supabase.from("profiles").select("*").in("id", ids);
+      if (pd) {
+        const m = {};
+        pd.forEach(p => { m[p.id] = p; });
+        setPartnerProfiles(m);
+      }
+    }
   }
+
   async function loadChat(pid) {
-    const {data}=await supabase.from("messages").select("*").or(`and(from_user.eq.${curProfile.id},to_user.eq.${pid}),and(from_user.eq.${pid},to_user.eq.${curProfile.id})`).order("created_at",{ascending:true});
-    setChat(data||[]);
-    await supabase.from("messages").update({read:true,read_at:new Date().toISOString()}).eq("to_user",curProfile.id).eq("from_user",pid).eq("read",false);
+    const { data } = await supabase.from("messages").select("*")
+      .or(`and(from_user.eq.${curProfile.id},to_user.eq.${pid}),and(from_user.eq.${pid},to_user.eq.${curProfile.id})`)
+      .order("created_at", { ascending: true });
+    setChat(data || []);
+    // Olvasottnak jelölés
+    await supabase.from("messages")
+      .update({ read: true, read_at: new Date().toISOString() })
+      .eq("to_user", curProfile.id).eq("from_user", pid).eq("read", false);
     loadConvs();
   }
+
   async function send() {
-    if(!newMsg.trim()||!activeChatWith)return;
-    await supabase.from("messages").insert({from_user:curProfile.id,to_user:activeChatWith,text:newMsg.trim(),read:false,delivered:true});
-    const tu=profiles[activeChatWith];
-    if(tu?.email)await supabase.functions.invoke("send-message-email",{body:{to_email:tu.email,to_name:tu.name,from_name:curProfile.name,message_text:newMsg.trim()}});
-    setNewMsg("");loadChat(activeChatWith);
+    const txt = newMsg.trim();
+    if (!txt || !activeChatWith) return;
+    setNewMsg("");
+
+    const { error } = await supabase.from("messages").insert({
+      from_user: curProfile.id,
+      to_user:   activeChatWith,
+      text:      txt,
+      read:      false,
+      delivered: true,
+    });
+
+    if (error) { console.error("Üzenet hiba:", error); return; }
+
+    // E-mail értesítés – try/catch, hogy ne blokkolja a küldést ha nincs edge function
+    try {
+      const partner = partnerProfiles[activeChatWith];
+      if (partner?.email) {
+        await supabase.functions.invoke("send-message-email", {
+          body: { to_email: partner.email, to_name: partner.name, from_name: curProfile.name, message_text: txt }
+        });
+      }
+    } catch (e) { console.warn("E-mail küldés sikertelen:", e); }
+
+    loadChat(activeChatWith);
   }
-  const totalUnread=convs.filter(c=>c.lastMsg.to_user===curProfile.id&&!c.lastMsg.read).length;
-  return (
-    <div style={{ paddingTop:60,height:"100vh",display:"flex" }}>
-      <div style={{ width:304,background:B.main,borderRight:`1px solid ${B.bor}`,overflowY:"auto",flexShrink:0 }}>
-        <div style={{ padding:"20px 20px 16px",borderBottom:`1px solid ${B.bor}`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-          <p style={{ fontFamily:"'Playfair Display',serif",fontSize:23,color:T.h }}>Üzenetek</p>
-          {totalUnread>0&&<span style={{ background:ACC.gold,borderRadius:12,padding:"2px 9px",fontFamily:"'DM Mono',monospace",fontSize:10,color:T.inv,fontWeight:700 }}>{totalUnread}</span>}
-        </div>
-        {convs.length===0&&<p style={{ padding:"24px 20px",color:T.ter,fontFamily:"'DM Mono',monospace",fontSize:11 }}>Még nincs üzeneted.</p>}
-        {convs.map(({partnerId,lastMsg})=>{
-          const u=profiles[partnerId];if(!u)return null;
-          const active=activeChatWith===partnerId,isUnread=lastMsg.to_user===curProfile.id&&!lastMsg.read;
-          return(
-            <div key={partnerId} onClick={()=>setActiveChatWith(partnerId)}
-              style={{ padding:"14px 20px",cursor:"pointer",display:"flex",gap:12,alignItems:"center",background:active?B.hover:isUnread?"#130f09":"transparent",borderLeft:active?`2px solid ${ACC.gold}`:isUnread?`2px solid ${ACC.gold}55`:"2px solid transparent",borderBottom:`1px solid ${B.bor}`,transition:"all .15s" }}>
-              <Ava u={u} size={38}/>
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3 }}>
-                  <span style={{ fontFamily:"'DM Mono',monospace",fontSize:11,color:isUnread?T.h:ACC.gold,fontWeight:isUnread?700:400 }}>{u.name}</span>
-                  <span style={{ fontFamily:"'DM Mono',monospace",fontSize:9,color:isUnread?ACC.gold:T.ter }}>{relTime(lastMsg.created_at)}</span>
+
+  function openConv(partnerId) {
+    setActiveChatWith(partnerId);
+    setMobileView("chat");
+  }
+
+  const totalUnread = convs.filter(c => c.lastMsg.to_user === curProfile.id && !c.lastMsg.read).length;
+  const activePartner = partnerProfiles[activeChatWith];
+
+  // ── MOBILE LAYOUT: teljes szélességű lista VAGY chat felváltva ──
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+
+  const listPane = (
+    <div style={{ background: B.main, borderRight: `1px solid ${B.bor}`, overflowY: "auto", display: "flex", flexDirection: "column",
+      width: isMobile ? "100%" : 304, flexShrink: 0,
+      display: (!isMobile || mobileView === "list") ? "flex" : "none",
+      flexDirection: "column" }}>
+      <div style={{ padding: "20px 20px 16px", borderBottom: `1px solid ${B.bor}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+        <p style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, color: T.h }}>Üzenetek</p>
+        {totalUnread > 0 && <span style={{ background: ACC.gold, borderRadius: 12, padding: "2px 9px", fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.inv, fontWeight: 700 }}>{totalUnread}</span>}
+      </div>
+      <div style={{ overflowY: "auto", flex: 1 }}>
+        {convs.length === 0 && (
+          <p style={{ padding: "28px 20px", color: T.sec, fontFamily: "'DM Mono',monospace", fontSize: 12 }}>Még nincs üzeneted.</p>
+        )}
+        {convs.map(({ partnerId, lastMsg }) => {
+          const u = partnerProfiles[partnerId];
+          const name = u?.name || "…";
+          const active   = activeChatWith === partnerId;
+          const isUnread = lastMsg.to_user === curProfile.id && !lastMsg.read;
+          return (
+            <div key={partnerId} onClick={() => openConv(partnerId)}
+              style={{ padding: "14px 20px", cursor: "pointer", display: "flex", gap: 12, alignItems: "center",
+                background: active ? B.hover : isUnread ? "#130f09" : "transparent",
+                borderLeft: active ? `3px solid ${ACC.gold}` : isUnread ? `3px solid ${ACC.gold}55` : "3px solid transparent",
+                borderBottom: `1px solid ${B.bor}` }}>
+              <Ava u={u || { name }} size={42} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, color: isUnread ? T.h : ACC.gold, fontWeight: isUnread ? 700 : 400 }}>{name}</span>
+                  <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: isUnread ? ACC.gold : T.ter }}>{relTime(lastMsg.created_at)}</span>
                 </div>
-                <div style={{ fontSize:12,color:isUnread?T.sec:T.ter,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:isUnread?600:400 }}>
-                  {lastMsg.from_user===curProfile.id?"Te: ":""}{lastMsg.text}
+                <div style={{ fontSize: 13, color: isUnread ? T.sec : T.ter, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: isUnread ? 600 : 400 }}>
+                  {lastMsg.from_user === curProfile.id ? "Te: " : ""}{lastMsg.text}
                 </div>
               </div>
-              {isUnread&&<div style={{ background:ACC.gold,borderRadius:"50%",width:8,height:8,flexShrink:0 }}/>}
+              {isUnread && <div style={{ background: ACC.gold, borderRadius: "50%", width: 10, height: 10, flexShrink: 0 }} />}
             </div>
           );
         })}
       </div>
-      <div style={{ flex:1,display:"flex",flexDirection:"column",background:B.deep,minWidth:0 }}>
-        {activeChatWith&&profiles[activeChatWith]?(
-          <>
-            <div style={{ padding:"14px 24px",borderBottom:`1px solid ${B.bor}`,display:"flex",alignItems:"center",gap:14,background:B.main }}>
-              <Ava u={profiles[activeChatWith]} size={38}/>
-              <div style={{ fontFamily:"'Playfair Display',serif",fontSize:20,color:T.h }}>{profiles[activeChatWith].name}</div>
-              <RankBadge sales={profiles[activeChatWith]?.sales||0}/>
-            </div>
-            <div style={{ flex:1,overflowY:"auto",padding:"24px",display:"flex",flexDirection:"column",gap:8 }}>
-              {chat.map((m,i)=>{
-                const me=m.from_user===curProfile.id;
-                const sIcon=m.read?"✓✓":m.delivered?"✓✓":"✓",sCol=m.read?ACC.gold:m.delivered?T.ter:T.dim;
-                return(
-                  <div key={i} style={{ display:"flex",justifyContent:me?"flex-end":"flex-start" }}>
-                    <div style={{ maxWidth:"68%",padding:"11px 15px",background:me?"#1e1608":B.card,border:`1px solid ${me?ACC.goldMd:B.bor}`,borderRadius:me?"14px 14px 3px 14px":"14px 14px 14px 3px" }}>
-                      <p style={{ color:T.h,fontSize:14,lineHeight:1.65,margin:0 }}>{m.text}</p>
-                      <div style={{ display:"flex",alignItems:"center",justifyContent:"flex-end",gap:5,marginTop:6 }}>
-                        <span style={{ color:T.ter,fontSize:10,fontFamily:"'DM Mono',monospace" }}>{new Date(m.created_at).toLocaleTimeString("hu-HU",{hour:"2-digit",minute:"2-digit"})}</span>
-                        {me&&<><span style={{ fontSize:10,color:sCol,letterSpacing:-2,transition:"color .4s" }}>{sIcon}</span>{m.read&&<span style={{ fontFamily:"'DM Mono',monospace",fontSize:8,color:ACC.gold+"88",letterSpacing:1 }}>látta</span>}</>}
-                      </div>
+    </div>
+  );
+
+  const chatPane = (
+    <div style={{ flex: 1, display: (!isMobile || mobileView === "chat") ? "flex" : "none", flexDirection: "column", background: B.deep, minWidth: 0, minHeight: 0 }}>
+      {activeChatWith && (activePartner || true) ? (
+        <>
+          {/* Chat fejléc */}
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${B.bor}`, display: "flex", alignItems: "center", gap: 12, background: B.main, flexShrink: 0 }}>
+            {/* Mobil vissza gomb */}
+            {isMobile && (
+              <button onClick={() => setMobileView("list")} style={{ background: "none", border: "none", color: T.sec, fontSize: 22, cursor: "pointer", padding: "0 8px 0 0", lineHeight: 1 }}>‹</button>
+            )}
+            <Ava u={activePartner || { name: "?" }} size={40} />
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 19, color: T.h, flex: 1 }}>{activePartner?.name || "…"}</div>
+            {activePartner && <RankBadge sales={activePartner.sales || 0} />}
+          </div>
+
+          {/* Üzenetek */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+            {chat.map((m, i) => {
+              const me = m.from_user === curProfile.id;
+              const sIcon  = m.read ? "✓✓" : m.delivered ? "✓✓" : "✓";
+              const sColor = m.read ? ACC.gold : m.delivered ? T.ter : T.dim;
+              return (
+                <div key={m.id || i} style={{ display: "flex", justifyContent: me ? "flex-end" : "flex-start" }}>
+                  <div style={{ maxWidth: "78%", padding: "11px 15px",
+                    background: me ? "#1e1608" : B.card,
+                    border: `1px solid ${me ? ACC.goldMd : B.bor}`,
+                    borderRadius: me ? "16px 16px 4px 16px" : "16px 16px 16px 4px" }}>
+                    <p style={{ color: T.h, fontSize: 15, lineHeight: 1.6, margin: 0 }}>{m.text}</p>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 5, marginTop: 5 }}>
+                      <span style={{ color: T.ter, fontSize: 11, fontFamily: "'DM Mono',monospace" }}>
+                        {new Date(m.created_at).toLocaleTimeString("hu-HU", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      {me && (
+                        <>
+                          <span style={{ fontSize: 11, color: sColor, letterSpacing: -2, transition: "color .4s" }}>{sIcon}</span>
+                          {m.read && <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 9, color: ACC.gold + "99" }}>látta</span>}
+                        </>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-              <div ref={bottomRef}/>
-            </div>
-            <div style={{ padding:"14px 24px",borderTop:`1px solid ${B.bor}`,display:"flex",gap:10,background:B.main }}>
-              <input value={newMsg} onChange={e=>setNewMsg(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Írj üzenetet... (Enter = küldés)" style={{ flex:1,background:B.card,border:`1px solid ${B.bor}`,color:T.h,padding:"12px 17px",borderRadius:9,fontFamily:"'DM Mono',monospace",fontSize:12,outline:"none" }}/>
-              <button onClick={send} style={{ background:`linear-gradient(135deg,${ACC.gold},#8a5f1a)`,border:"none",color:T.inv,padding:"12px 20px",borderRadius:9,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontWeight:700,fontSize:15 }}>→</button>
-            </div>
-          </>
-        ):(
-          <div style={{ flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16 }}>
-            <span style={{ fontSize:52,opacity:.15 }}>✉</span>
-            <p style={{ color:T.ter,fontFamily:"'DM Mono',monospace",fontSize:12 }}>Válassz egy beszélgetést</p>
+                </div>
+              );
+            })}
+            <div ref={bottomRef} />
           </div>
-        )}
-      </div>
+
+          {/* Input */}
+          <div style={{ padding: "12px 16px", borderTop: `1px solid ${B.bor}`, display: "flex", gap: 10, background: B.main, flexShrink: 0 }}>
+            <input
+              ref={inputRef}
+              value={newMsg}
+              onChange={e => setNewMsg(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
+              placeholder="Írj üzenetet..."
+              style={{ flex: 1, background: B.card, border: `1px solid ${B.bor}`, color: T.h, padding: "13px 16px", borderRadius: 10, fontFamily: "'DM Mono',monospace", fontSize: 16, outline: "none", WebkitAppearance: "none" }}
+            />
+            <button onClick={send} style={{ background: `linear-gradient(135deg,${ACC.gold},#8a5f1a)`, border: "none", color: T.inv, padding: "13px 20px", borderRadius: 10, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontWeight: 700, fontSize: 18, flexShrink: 0 }}>→</button>
+          </div>
+        </>
+      ) : (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
+          <span style={{ fontSize: 52, opacity: .12 }}>✉</span>
+          <p style={{ color: T.ter, fontFamily: "'DM Mono',monospace", fontSize: 13 }}>Válassz egy beszélgetést</p>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{ paddingTop: 60, height: "100dvh", display: "flex", overflow: "hidden" }}>
+      {listPane}
+      {chatPane}
     </div>
   );
 }
@@ -1175,7 +1292,7 @@ export default function App() {
       {page==="detail"      &&selListing&&<Detail l={selListing} u={allProfiles[selListing.user_id]} curProfile={profile} go={go} setProfileId={setProfileId} setActiveChatWith={setACW} onStatusChange={handleStatusChange}/>}
       {page==="profile"     &&profileUser&&<Profile pu={profileUser} curProfile={profile} go={go} listings={listings} setActiveChatWith={setACW} onSignOut={signOut}/>}
       {page==="profile_own" &&profile    &&<Profile pu={profile} curProfile={profile} go={go} listings={listings} setActiveChatWith={setACW} onSignOut={signOut}/>}
-      {page==="messages"    &&profile    &&<Messages curProfile={profile} profiles={allProfiles} activeChatWith={activeChatWith} setActiveChatWith={setACW}/>}
+      {page==="messages"    &&profile    &&<Messages curProfile={profile} activeChatWith={activeChatWith} setActiveChatWith={setACW}/>}
       {page==="sell"        &&profile    &&<Sell curProfile={profile} go={go} setListings={setListings} showToast={showToast}/>}
       {page==="guest_wall"  &&            <GuestWall go={go}/>}
       {page==="login"       &&            <Login go={go} showToast={showToast}/>}
