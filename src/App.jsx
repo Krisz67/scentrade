@@ -732,7 +732,7 @@ function Messages({ curProfile, activeChatWith, setActiveChatWith }) {
     try {
       const partner = partnerProfiles[activeChatWith];
       if (partner?.email) {
-        await supabase.functions.invoke("send-message-email", {
+        await supabase.functions.invoke("clever-worker", {
           body: { to_email: partner.email, to_name: partner.name, from_name: curProfile.name, message_text: txt }
         });
       }
