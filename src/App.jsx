@@ -755,53 +755,92 @@ function Messages({ curProfile, profiles, activeChatWith, setActiveChatWith }) {
 
 // ─── SELL ─────────────────────────────────────────────────────────────────────
 function Sell({ curProfile, go, setListings, showToast }) {
-  const [form,setForm]=useState({type:"sell",listing_type:"full",brand:"",name:"",size:"100ml",fill:90,condition:"excellent",price:"",decant_ml:5,category:"woody",description:"",tags:"",icon:"✨",swap_ok:false});
-  const [loading,setLoading]=useState(false); const [errors,setErrors]=useState({}); const [images,setImages]=useState([]);
+  // iOS FIX: minden mező külön state – így nem rendereli újra a teljes formot
+  // és a billentyűzet nem ugrik el gépelés közben
+  const [sType, setSType]         = useState("sell");
+  const [sListingType, setSLT]    = useState("full");
+  const [sBrand, setSBrand]       = useState("");
+  const [sName, setSName]         = useState("");
+  const [sSize, setSSize]         = useState("100ml");
+  const [sFill, setSFill]         = useState(90);
+  const [sCondition, setSCond]    = useState("excellent");
+  const [sPrice, setSPrice]       = useState("");
+  const [sDecantMl, setSDecantMl] = useState("5");
+  const [sCategory, setSCategory] = useState("woody");
+  const [sDesc, setSDesc]         = useState("");
+  const [sTags, setSTags]         = useState("");
+  const [sIcon, setSIcon]         = useState("✨");
+  const [sSwap, setSSwap]         = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [errors, setErrors]       = useState({});
+  const [images, setImages]       = useState([]);
 
   function validate() {
-    const e={};
-    if(!form.brand.trim())e.brand="A márka megadása kötelező";
-    if(!form.name.trim())e.name="A név megadása kötelező";
-    if(!form.price||Number(form.price)<=0)e.price="Adj meg érvényes árat";
-    if(!form.description.trim())e.description="Írj egy rövid leírást";
+    const e = {};
+    if (!sBrand.trim())                   e.brand       = "A márka megadása kötelező";
+    if (!sName.trim())                    e.name        = "A név megadása kötelező";
+    if (!sPrice || Number(sPrice) <= 0)   e.price       = "Adj meg érvényes árat";
+    if (!sDesc.trim())                    e.description = "Írj egy rövid leírást";
     return e;
   }
+
   async function uploadImages(lid) {
-    const urls=[];
-    for(const img of images){
-      const ext=img.name.split(".").pop(),path=`${curProfile.id}/${lid}/${Date.now()}.${ext}`;
-      const {error}=await supabase.storage.from("listing-images").upload(path,img);
-      if(!error){const {data}=supabase.storage.from("listing-images").getPublicUrl(path);urls.push(data.publicUrl);}
+    const urls = [];
+    for (const img of images) {
+      const ext = img.name.split(".").pop();
+      const path = `${curProfile.id}/${lid}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("listing-images").upload(path, img);
+      if (!error) { const { data } = supabase.storage.from("listing-images").getPublicUrl(path); urls.push(data.publicUrl); }
     }
     return urls;
   }
+
   async function submit() {
-    if(!curProfile){go("login");return;}
-    const e=validate();
-    if(Object.keys(e).length>0){setErrors(e);showToast("Töltsd ki a kötelező mezőket!","error");return;}
-    setErrors({});setLoading(true);
-    const isDec=form.listing_type==="decant";
-    const {data,error}=await supabase.from("listings").insert({
-      user_id:curProfile.id,type:form.type,listing_type:form.listing_type,brand:form.brand.trim(),name:form.name.trim(),
-      size:isDec?null:form.size,fill:(!isDec&&form.type==="sell")?Number(form.fill):null,
-      condition:(!isDec&&form.type==="sell")?form.condition:null,price:Number(form.price),
-      decant_ml:isDec?Number(form.decant_ml):null,description:form.description.trim(),category:form.category,
-      tags:form.tags.split(",").map(t=>t.trim()).filter(Boolean),icon:form.icon,views:0,favorites:0,status:"active",swap_ok:form.swap_ok
+    if (!curProfile) { go("login"); return; }
+    const e = validate();
+    if (Object.keys(e).length > 0) { setErrors(e); showToast("Töltsd ki a kötelező mezőket!", "error"); return; }
+    setErrors({}); setLoading(true);
+    const isDec = sListingType === "decant";
+    const { data, error } = await supabase.from("listings").insert({
+      user_id:      curProfile.id,
+      type:         sType,
+      listing_type: sListingType,
+      brand:        sBrand.trim(),
+      name:         sName.trim(),
+      size:         isDec ? null : sSize,
+      fill:         (!isDec && sType === "sell") ? Number(sFill) : null,
+      condition:    (!isDec && sType === "sell") ? sCondition : null,
+      price:        Number(sPrice),
+      decant_ml:    isDec ? Number(sDecantMl) : null,
+      description:  sDesc.trim(),
+      category:     sCategory,
+      tags:         sTags.split(",").map(t => t.trim()).filter(Boolean),
+      icon:         sIcon,
+      views:        0,
+      favorites:    0,
+      status:       "active",
+      swap_ok:      sSwap,
     }).select().single();
-    if(error){setLoading(false);showToast("Hiba: "+error.message,"error");return;}
-    if(images.length>0){const urls=await uploadImages(data.id);await supabase.from("listings").update({image_urls:urls}).eq("id",data.id);data.image_urls=urls;}
-    setLoading(false);setListings(p=>[data,...p]);
-    showToast("Hirdetés sikeresen közzétéve!","success");
-    setTimeout(()=>go("market"),900);
+    if (error) { setLoading(false); showToast("Hiba: " + error.message, "error"); return; }
+    if (images.length > 0) {
+      const urls = await uploadImages(data.id);
+      await supabase.from("listings").update({ image_urls: urls }).eq("id", data.id);
+      data.image_urls = urls;
+    }
+    setLoading(false);
+    setListings(p => [data, ...p]);
+    showToast("Hirdetés sikeresen közzétéve!", "success");
+    setTimeout(() => go("market"), 900);
   }
 
-  const inp={background:B.card,border:`1px solid ${B.bor}`,color:T.h,padding:"11px 15px",borderRadius:9,fontFamily:"'DM Mono',monospace",fontSize:12,width:"100%",boxSizing:"border-box",outline:"none"};
-  const errB={border:`1px solid ${ACC.red}55`};
-  function F({label,errKey,children}){
-    return(
-      <div style={{ marginBottom:20 }}>
-        <label style={{ fontFamily:"'DM Mono',monospace",fontSize:10,color:errors[errKey]?ACC.red:T.sec,letterSpacing:2,display:"block",marginBottom:8,textTransform:"uppercase" }}>
-          {label}{errors[errKey]&&<span style={{ marginLeft:8,textTransform:"none",letterSpacing:0,fontSize:11 }}>— {errors[errKey]}</span>}
+  const inp = { background: B.card, border: `1px solid ${B.bor}`, color: T.h, padding: "11px 15px", borderRadius: 9, fontFamily: "'DM Mono',monospace", fontSize: 16, width: "100%", boxSizing: "border-box", outline: "none" };
+  const errB = { border: `1px solid ${ACC.red}55` };
+
+  function F({ label, errKey, children }) {
+    return (
+      <div style={{ marginBottom: 22 }}>
+        <label style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: errors[errKey] ? ACC.red : T.sec, letterSpacing: 2, display: "block", marginBottom: 9, textTransform: "uppercase" }}>
+          {label}{errors[errKey] && <span style={{ marginLeft: 8, textTransform: "none", letterSpacing: 0, fontSize: 11 }}>— {errors[errKey]}</span>}
         </label>
         {children}
       </div>
@@ -809,66 +848,154 @@ function Sell({ curProfile, go, setListings, showToast }) {
   }
 
   return (
-    <div style={{ paddingTop:60,maxWidth:740,margin:"0 auto",padding:"80px 40px 100px" }}>
-      <h1 style={{ fontFamily:"'Playfair Display',serif",fontSize:46,color:T.h,fontWeight:400,marginBottom:10 }}>Hirdetés feladása</h1>
-      <p style={{ color:T.sec,fontSize:14,marginBottom:44,fontFamily:"'DM Mono',monospace" }}>Minden mező kitöltése gyorsabb eladást hoz.</p>
+    <div style={{ paddingTop: 60, maxWidth: 740, margin: "0 auto", padding: "80px 20px 100px" }}>
+      <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 40, color: T.h, fontWeight: 400, marginBottom: 10 }}>Hirdetés feladása</h1>
+      <p style={{ color: T.sec, fontSize: 14, marginBottom: 40, fontFamily: "'DM Mono',monospace" }}>Minden mező kitöltése gyorsabb eladást hoz.</p>
+
+      {/* Típus választó */}
       <F label="Mit szeretnél?">
-        <div style={{ display:"flex",gap:10 }}>
-          {[["sell","🏷 Eladom"],["buy","🔍 Keresem"]].map(([t,l])=>(
-            <button key={t} onClick={()=>setForm(f=>({...f,type:t}))} style={{ flex:1,background:form.type===t?ACC.goldLo:"transparent",border:`1px solid ${form.type===t?ACC.goldMd:B.bor}`,color:form.type===t?ACC.gold:T.sec,padding:"13px",borderRadius:9,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:11 }}>{l}</button>
+        <div style={{ display: "flex", gap: 10 }}>
+          {[["sell","🏷 Eladom"],["buy","🔍 Keresem"]].map(([t,l]) => (
+            <button key={t} onClick={() => setSType(t)} style={{ flex: 1, background: sType===t?ACC.goldLo:"transparent", border: `1px solid ${sType===t?ACC.goldMd:B.bor}`, color: sType===t?ACC.gold:T.sec, padding: "14px", borderRadius: 9, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 12 }}>{l}</button>
           ))}
         </div>
       </F>
+
       <F label="Hirdetés típusa">
-        <div style={{ display:"flex",gap:10 }}>
-          {[["full","🫙 Teljes üveg"],["decant","💧 Dekant"]].map(([t,l])=>(
-            <button key={t} onClick={()=>setForm(f=>({...f,listing_type:t}))} style={{ flex:1,background:form.listing_type===t?ACC.goldLo:"transparent",border:`1px solid ${form.listing_type===t?ACC.goldMd:B.bor}`,color:form.listing_type===t?ACC.gold:T.sec,padding:"13px",borderRadius:9,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:11 }}>{l}</button>
+        <div style={{ display: "flex", gap: 10 }}>
+          {[["full","🫙 Teljes üveg"],["decant","💧 Dekant"]].map(([t,l]) => (
+            <button key={t} onClick={() => setSLT(t)} style={{ flex: 1, background: sListingType===t?ACC.goldLo:"transparent", border: `1px solid ${sListingType===t?ACC.goldMd:B.bor}`, color: sListingType===t?ACC.gold:T.sec, padding: "14px", borderRadius: 9, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 12 }}>{l}</button>
           ))}
         </div>
       </F>
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16 }}>
-        <F label="Márka *" errKey="brand"><input value={form.brand} onChange={e=>setForm(f=>({...f,brand:e.target.value}))} placeholder="pl. Creed" style={{...inp,...(errors.brand?errB:{})}}/></F>
-        <F label="Név *" errKey="name"><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="pl. Aventus" style={{...inp,...(errors.name?errB:{})}}/></F>
-        {form.listing_type==="full"&&<F label="Méret"><select value={form.size} onChange={e=>setForm(f=>({...f,size:e.target.value}))} style={{...inp,cursor:"pointer"}}>{["30ml","50ml","75ml","100ml","125ml","150ml","200ml","Egyéb"].map(s=><option key={s}>{s}</option>)}</select></F>}
-        {form.listing_type==="decant"&&<F label="Dekant méret (ml)"><select value={form.decant_ml} onChange={e=>setForm(f=>({...f,decant_ml:e.target.value}))} style={{...inp,cursor:"pointer"}}>{DECANT_SZ.map(s=><option key={s} value={s}>{s}ml</option>)}</select></F>}
-        <F label="Kategória"><select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} style={{...inp,cursor:"pointer"}}>{["woody","oriental","floral","fresh","aromatic"].map(c=><option key={c}>{c}</option>)}</select></F>
-        {form.listing_type==="full"&&form.type==="sell"&&<F label="Állapot"><select value={form.condition} onChange={e=>setForm(f=>({...f,condition:e.target.value}))} style={{...inp,cursor:"pointer"}}>{Object.entries(COND).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></F>}
+
+      {/* Szöveges mezők – mind külön state, iOS-biztos */}
+      <F label="Márka *" errKey="brand">
+        <input
+          value={sBrand}
+          onChange={e => setSBrand(e.target.value)}
+          placeholder="pl. Creed"
+          autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck="false"
+          style={{ ...inp, ...(errors.brand ? errB : {}) }}
+        />
+      </F>
+
+      <F label="Parfüm neve *" errKey="name">
+        <input
+          value={sName}
+          onChange={e => setSName(e.target.value)}
+          placeholder="pl. Aventus"
+          autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck="false"
+          style={{ ...inp, ...(errors.name ? errB : {}) }}
+        />
+      </F>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {sListingType === "full" && (
+          <F label="Méret">
+            <select value={sSize} onChange={e => setSSize(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+              {["30ml","50ml","75ml","100ml","125ml","150ml","200ml","Egyéb"].map(s => <option key={s}>{s}</option>)}
+            </select>
+          </F>
+        )}
+        {sListingType === "decant" && (
+          <F label="Dekant méret (ml)">
+            <select value={sDecantMl} onChange={e => setSDecantMl(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+              {DECANT_SZ.map(s => <option key={s} value={s}>{s}ml</option>)}
+            </select>
+          </F>
+        )}
+        <F label="Kategória">
+          <select value={sCategory} onChange={e => setSCategory(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+            {["woody","oriental","floral","fresh","aromatic"].map(c => <option key={c}>{c}</option>)}
+          </select>
+        </F>
+        {sListingType === "full" && sType === "sell" && (
+          <F label="Állapot">
+            <select value={sCondition} onChange={e => setSCond(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+              {Object.entries(COND).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </F>
+        )}
       </div>
-      {form.listing_type==="full"&&form.type==="sell"&&<F label="Töltöttségi szint"><BottleSlider value={form.fill} onChange={v=>setForm(f=>({...f,fill:v}))}/></F>}
-      <F label="Ár (Ft) *" errKey="price"><input value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} placeholder="pl. 35000" type="number" style={{...inp,...(errors.price?errB:{})}}/></F>
-      <F label="Leírás *" errKey="description"><textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} rows={4} placeholder="Batch, állapot részletei, csere lehetőség..." style={{...inp,resize:"vertical",...(errors.description?errB:{})}}/></F>
-      <F label="Tagek (vesszővel)"><input value={form.tags} onChange={e=>setForm(f=>({...f,tags:e.target.value}))} placeholder="creed, niche, woody" style={inp}/></F>
-      <div style={{ marginBottom:24 }}>
-        <label style={{ display:"flex",gap:14,alignItems:"center",cursor:"pointer" }}>
-          <div onClick={()=>setForm(f=>({...f,swap_ok:!f.swap_ok}))} style={{ width:22,height:22,borderRadius:6,flexShrink:0,background:form.swap_ok?ACC.violetLo:B.card,border:`1.5px solid ${form.swap_ok?ACC.violet:B.bor}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .15s" }}>
-            {form.swap_ok&&<span style={{ color:ACC.violet,fontSize:13,fontWeight:700 }}>✓</span>}
+
+      {/* Üveg töltöttség csúszka */}
+      {sListingType === "full" && sType === "sell" && (
+        <F label="Töltöttségi szint">
+          <BottleSlider value={sFill} onChange={setSFill} />
+        </F>
+      )}
+
+      <F label="Ár (Ft) *" errKey="price">
+        <input
+          value={sPrice}
+          onChange={e => setSPrice(e.target.value)}
+          placeholder="pl. 35000"
+          type="number"
+          inputMode="numeric"
+          style={{ ...inp, ...(errors.price ? errB : {}) }}
+        />
+      </F>
+
+      <F label="Leírás *" errKey="description">
+        <textarea
+          value={sDesc}
+          onChange={e => setSDesc(e.target.value)}
+          rows={5}
+          placeholder="Batch, állapot részletei, csere lehetőség..."
+          style={{ ...inp, resize: "vertical", ...(errors.description ? errB : {}) }}
+        />
+      </F>
+
+      <F label="Tagek (vesszővel)">
+        <input
+          value={sTags}
+          onChange={e => setSTags(e.target.value)}
+          placeholder="creed, niche, woody"
+          autoComplete="off" autoCorrect="off" spellCheck="false"
+          style={inp}
+        />
+      </F>
+
+      {/* Csere checkbox */}
+      <div style={{ marginBottom: 26 }}>
+        <div onClick={() => setSSwap(v => !v)} style={{ display: "flex", gap: 14, alignItems: "center", cursor: "pointer" }}>
+          <div style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, background: sSwap ? ACC.violetLo : B.card, border: `1.5px solid ${sSwap ? ACC.violet : B.bor}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
+            {sSwap && <span style={{ color: ACC.violet, fontSize: 14, fontWeight: 700 }}>✓</span>}
           </div>
           <div>
-            <div style={{ fontFamily:"'DM Mono',monospace",fontSize:11,color:form.swap_ok?ACC.violet:T.sec,letterSpacing:1 }}>Csere is érdekel</div>
-            <div style={{ fontFamily:"'DM Mono',monospace",fontSize:10,color:T.ter,marginTop:2 }}>Más parfümre is cserélném</div>
+            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: sSwap ? ACC.violet : T.sec, letterSpacing: 1 }}>Csere is érdekel</div>
+            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.ter, marginTop: 3 }}>Más parfümre is cserélném</div>
           </div>
-        </label>
+        </div>
       </div>
+
+      {/* Fotók */}
       <F label="Fotók (max 5)">
-        <input type="file" accept="image/*" multiple onChange={e=>setImages(Array.from(e.target.files).slice(0,5))} style={{ color:ACC.gold,fontFamily:"'DM Mono',monospace",fontSize:12 }}/>
-        {images.length>0&&(
-          <div style={{ display:"flex",gap:8,marginTop:12,flexWrap:"wrap" }}>
-            {images.map((img,i)=>(
-              <div key={i} style={{ position:"relative" }}>
-                <img src={URL.createObjectURL(img)} style={{ width:84,height:84,objectFit:"cover",borderRadius:9,border:`1px solid ${B.bor}` }} alt=""/>
-                <button onClick={()=>setImages(p=>p.filter((_,j)=>j!==i))} style={{ position:"absolute",top:-7,right:-7,background:ACC.red,border:"none",borderRadius:"50%",width:20,height:20,cursor:"pointer",color:"white",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center" }}>×</button>
+        <input type="file" accept="image/*" multiple onChange={e => setImages(Array.from(e.target.files).slice(0,5))} style={{ color: ACC.gold, fontFamily: "'DM Mono',monospace", fontSize: 13 }} />
+        {images.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            {images.map((img, i) => (
+              <div key={i} style={{ position: "relative" }}>
+                <img src={URL.createObjectURL(img)} style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 9, border: `1px solid ${B.bor}` }} alt="" />
+                <button onClick={() => setImages(p => p.filter((_,j) => j !== i))} style={{ position: "absolute", top: -7, right: -7, background: ACC.red, border: "none", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", color: "white", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
               </div>
             ))}
           </div>
         )}
       </F>
+
+      {/* Ikon */}
       <F label="Ikon">
-        <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
-          {ICONS.map(ic=><button key={ic} onClick={()=>setForm(f=>({...f,icon:ic}))} style={{ background:form.icon===ic?ACC.goldLo:B.card,border:`1px solid ${form.icon===ic?ACC.goldMd:B.bor}`,borderRadius:9,padding:"9px 13px",cursor:"pointer",fontSize:22 }}>{ic}</button>)}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {ICONS.map(ic => (
+            <button key={ic} onClick={() => setSIcon(ic)} style={{ background: sIcon===ic?ACC.goldLo:B.card, border: `1px solid ${sIcon===ic?ACC.goldMd:B.bor}`, borderRadius: 9, padding: "9px 13px", cursor: "pointer", fontSize: 22 }}>{ic}</button>
+          ))}
         </div>
       </F>
-      <button onClick={submit} disabled={loading} style={{ background:`linear-gradient(135deg,${ACC.gold},#8a5f1a)`,border:"none",color:T.inv,padding:"17px",width:"100%",borderRadius:10,cursor:"pointer",fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,marginTop:12,opacity:loading?.6:1 }}>
-        {loading?"Feltöltés...":"Hirdetés közzététele →"}
+
+      <button onClick={submit} disabled={loading} style={{ background: `linear-gradient(135deg,${ACC.gold},#8a5f1a)`, border: "none", color: T.inv, padding: "18px", width: "100%", borderRadius: 10, cursor: "pointer", fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, marginTop: 12, opacity: loading ? 0.6 : 1 }}>
+        {loading ? "Feltöltés..." : "Hirdetés közzététele →"}
       </button>
     </div>
   );
@@ -929,7 +1056,8 @@ function Login({ go, showToast }) {
     }
   }
 
-  const inp={background:B.card,border:`1px solid ${B.bor}`,color:T.h,padding:"13px 16px",borderRadius:9,fontFamily:"'DM Mono',monospace",fontSize:12,width:"100%",boxSizing:"border-box",outline:"none",marginBottom:10};
+  // iOS FIX: fontSize 16px – ez alatt iOS automatikusan zoomol és ledobja a billentyűzetet
+  const inp={background:B.card,border:`1px solid ${B.bor}`,color:T.h,padding:"13px 16px",borderRadius:9,fontFamily:"'DM Mono',monospace",fontSize:16,width:"100%",boxSizing:"border-box",outline:"none",marginBottom:10};
   const lbl={fontFamily:"'DM Mono',monospace",fontSize:9,color:T.sec,letterSpacing:2,display:"block",marginBottom:6,textTransform:"uppercase"};
 
   if(regState==="confirm")return(
@@ -1037,6 +1165,7 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Mono:wght@400;500;700&display=swap');
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{background:#0e0b08;}
+        input,textarea,select{font-size:16px!important;}
         input::placeholder,textarea::placeholder{color:#3d2e1e;}
         ::-webkit-scrollbar{width:4px;}
         ::-webkit-scrollbar-track{background:#080604;}
