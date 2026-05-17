@@ -754,35 +754,43 @@ function Messages({ curProfile, profiles, activeChatWith, setActiveChatWith }) {
 }
 
 // ─── SELL ─────────────────────────────────────────────────────────────────────
+// ─── SELL FORM FIELD – a Sell-en KÍVÜL definiálva!
+// Ha belül lenne, minden render új komponens-referenciát hozna létre,
+// ami iOS-en unmount+remount-ot okoz = elveszett fókusz.
+function SellField({ label, error, children }) {
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: error ? ACC.red : T.sec, letterSpacing: 2, marginBottom: 9, textTransform: "uppercase" }}>
+        {label}{error && <span style={{ marginLeft: 8, textTransform: "none", letterSpacing: 0, fontSize: 11 }}>— {error}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function Sell({ curProfile, go, setListings, showToast }) {
-  // iOS FIX: minden mező külön state – így nem rendereli újra a teljes formot
-  // és a billentyűzet nem ugrik el gépelés közben
+  // Választó state-ek (nem okoznak fókusz-vesztést, mert gombokhoz tartoznak)
   const [sType, setSType]         = useState("sell");
   const [sListingType, setSLT]    = useState("full");
-  const [sBrand, setSBrand]       = useState("");
-  const [sName, setSName]         = useState("");
   const [sSize, setSSize]         = useState("100ml");
   const [sFill, setSFill]         = useState(90);
   const [sCondition, setSCond]    = useState("excellent");
-  const [sPrice, setSPrice]       = useState("");
   const [sDecantMl, setSDecantMl] = useState("5");
   const [sCategory, setSCategory] = useState("woody");
-  const [sDesc, setSDesc]         = useState("");
-  const [sTags, setSTags]         = useState("");
   const [sIcon, setSIcon]         = useState("✨");
   const [sSwap, setSSwap]         = useState(false);
   const [loading, setLoading]     = useState(false);
   const [errors, setErrors]       = useState({});
   const [images, setImages]       = useState([]);
 
-  function validate() {
-    const e = {};
-    if (!sBrand.trim())                   e.brand       = "A márka megadása kötelező";
-    if (!sName.trim())                    e.name        = "A név megadása kötelező";
-    if (!sPrice || Number(sPrice) <= 0)   e.price       = "Adj meg érvényes árat";
-    if (!sDesc.trim())                    e.description = "Írj egy rövid leírást";
-    return e;
-  }
+  // iOS VALÓDI FIX: uncontrolled inputok useRef-fel.
+  // A ref-ek nem okoznak re-rendert gépeléskor, szóval
+  // a komponens fa nem változik = a billentyűzet nem ugrik el.
+  const refBrand = useRef(null);
+  const refName  = useRef(null);
+  const refPrice = useRef(null);
+  const refDesc  = useRef(null);
+  const refTags  = useRef(null);
 
   async function uploadImages(lid) {
     const urls = [];
@@ -797,30 +805,42 @@ function Sell({ curProfile, go, setListings, showToast }) {
 
   async function submit() {
     if (!curProfile) { go("login"); return; }
-    const e = validate();
+    const brand = refBrand.current?.value?.trim() || "";
+    const name  = refName.current?.value?.trim()  || "";
+    const price = refPrice.current?.value || "";
+    const desc  = refDesc.current?.value?.trim()  || "";
+    const tags  = refTags.current?.value || "";
+
+    const e = {};
+    if (!brand)                   e.brand       = "A márka megadása kötelező";
+    if (!name)                    e.name        = "A név megadása kötelező";
+    if (!price || Number(price) <= 0) e.price   = "Adj meg érvényes árat";
+    if (!desc)                    e.description = "Írj egy rövid leírást";
     if (Object.keys(e).length > 0) { setErrors(e); showToast("Töltsd ki a kötelező mezőket!", "error"); return; }
+
     setErrors({}); setLoading(true);
     const isDec = sListingType === "decant";
     const { data, error } = await supabase.from("listings").insert({
       user_id:      curProfile.id,
       type:         sType,
       listing_type: sListingType,
-      brand:        sBrand.trim(),
-      name:         sName.trim(),
+      brand,
+      name,
       size:         isDec ? null : sSize,
       fill:         (!isDec && sType === "sell") ? Number(sFill) : null,
       condition:    (!isDec && sType === "sell") ? sCondition : null,
-      price:        Number(sPrice),
+      price:        Number(price),
       decant_ml:    isDec ? Number(sDecantMl) : null,
-      description:  sDesc.trim(),
+      description:  desc,
       category:     sCategory,
-      tags:         sTags.split(",").map(t => t.trim()).filter(Boolean),
+      tags:         tags.split(",").map(t => t.trim()).filter(Boolean),
       icon:         sIcon,
       views:        0,
       favorites:    0,
       status:       "active",
       swap_ok:      sSwap,
     }).select().single();
+
     if (error) { setLoading(false); showToast("Hiba: " + error.message, "error"); return; }
     if (images.length > 0) {
       const urls = await uploadImages(data.id);
@@ -833,146 +853,116 @@ function Sell({ curProfile, go, setListings, showToast }) {
     setTimeout(() => go("market"), 900);
   }
 
-  const inp = { background: B.card, border: `1px solid ${B.bor}`, color: T.h, padding: "11px 15px", borderRadius: 9, fontFamily: "'DM Mono',monospace", fontSize: 16, width: "100%", boxSizing: "border-box", outline: "none" };
+  // Alap input stílus – fontSize 16px kötelező iOS-en, különben zoom+fókuszvesztés
+  const inp = {
+    background: B.card, border: `1px solid ${B.bor}`, color: T.h,
+    padding: "14px 15px", borderRadius: 9, fontFamily: "'DM Mono',monospace",
+    fontSize: 16, width: "100%", boxSizing: "border-box", outline: "none",
+    WebkitAppearance: "none",
+  };
   const errB = { border: `1px solid ${ACC.red}55` };
-
-  function F({ label, errKey, children }) {
-    return (
-      <div style={{ marginBottom: 22 }}>
-        <label style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: errors[errKey] ? ACC.red : T.sec, letterSpacing: 2, display: "block", marginBottom: 9, textTransform: "uppercase" }}>
-          {label}{errors[errKey] && <span style={{ marginLeft: 8, textTransform: "none", letterSpacing: 0, fontSize: 11 }}>— {errors[errKey]}</span>}
-        </label>
-        {children}
-      </div>
-    );
-  }
 
   return (
     <div style={{ paddingTop: 60, maxWidth: 740, margin: "0 auto", padding: "80px 20px 100px" }}>
       <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 40, color: T.h, fontWeight: 400, marginBottom: 10 }}>Hirdetés feladása</h1>
       <p style={{ color: T.sec, fontSize: 14, marginBottom: 40, fontFamily: "'DM Mono',monospace" }}>Minden mező kitöltése gyorsabb eladást hoz.</p>
 
-      {/* Típus választó */}
-      <F label="Mit szeretnél?">
+      <SellField label="Mit szeretnél?">
         <div style={{ display: "flex", gap: 10 }}>
           {[["sell","🏷 Eladom"],["buy","🔍 Keresem"]].map(([t,l]) => (
-            <button key={t} onClick={() => setSType(t)} style={{ flex: 1, background: sType===t?ACC.goldLo:"transparent", border: `1px solid ${sType===t?ACC.goldMd:B.bor}`, color: sType===t?ACC.gold:T.sec, padding: "14px", borderRadius: 9, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 12 }}>{l}</button>
+            <button key={t} onClick={() => setSType(t)} style={{ flex: 1, background: sType===t?ACC.goldLo:"transparent", border: `1px solid ${sType===t?ACC.goldMd:B.bor}`, color: sType===t?ACC.gold:T.sec, padding: "14px", borderRadius: 9, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 13 }}>{l}</button>
           ))}
         </div>
-      </F>
+      </SellField>
 
-      <F label="Hirdetés típusa">
+      <SellField label="Hirdetés típusa">
         <div style={{ display: "flex", gap: 10 }}>
           {[["full","🫙 Teljes üveg"],["decant","💧 Dekant"]].map(([t,l]) => (
-            <button key={t} onClick={() => setSLT(t)} style={{ flex: 1, background: sListingType===t?ACC.goldLo:"transparent", border: `1px solid ${sListingType===t?ACC.goldMd:B.bor}`, color: sListingType===t?ACC.gold:T.sec, padding: "14px", borderRadius: 9, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 12 }}>{l}</button>
+            <button key={t} onClick={() => setSLT(t)} style={{ flex: 1, background: sListingType===t?ACC.goldLo:"transparent", border: `1px solid ${sListingType===t?ACC.goldMd:B.bor}`, color: sListingType===t?ACC.gold:T.sec, padding: "14px", borderRadius: 9, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 13 }}>{l}</button>
           ))}
         </div>
-      </F>
+      </SellField>
 
-      {/* Szöveges mezők – mind külön state, iOS-biztos */}
-      <F label="Márka *" errKey="brand">
-        <input
-          value={sBrand}
-          onChange={e => setSBrand(e.target.value)}
-          placeholder="pl. Creed"
+      {/* uncontrolled input – ref alapú, nem okoz re-rendert gépeléskor */}
+      <SellField label="Márka *" error={errors.brand}>
+        <input ref={refBrand} defaultValue="" placeholder="pl. Creed"
           autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck="false"
-          style={{ ...inp, ...(errors.brand ? errB : {}) }}
-        />
-      </F>
+          style={{ ...inp, ...(errors.brand ? errB : {}) }} />
+      </SellField>
 
-      <F label="Parfüm neve *" errKey="name">
-        <input
-          value={sName}
-          onChange={e => setSName(e.target.value)}
-          placeholder="pl. Aventus"
+      <SellField label="Parfüm neve *" error={errors.name}>
+        <input ref={refName} defaultValue="" placeholder="pl. Aventus"
           autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck="false"
-          style={{ ...inp, ...(errors.name ? errB : {}) }}
-        />
-      </F>
+          style={{ ...inp, ...(errors.name ? errB : {}) }} />
+      </SellField>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         {sListingType === "full" && (
-          <F label="Méret">
+          <SellField label="Méret">
             <select value={sSize} onChange={e => setSSize(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
               {["30ml","50ml","75ml","100ml","125ml","150ml","200ml","Egyéb"].map(s => <option key={s}>{s}</option>)}
             </select>
-          </F>
+          </SellField>
         )}
         {sListingType === "decant" && (
-          <F label="Dekant méret (ml)">
+          <SellField label="Dekant méret (ml)">
             <select value={sDecantMl} onChange={e => setSDecantMl(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
               {DECANT_SZ.map(s => <option key={s} value={s}>{s}ml</option>)}
             </select>
-          </F>
+          </SellField>
         )}
-        <F label="Kategória">
+        <SellField label="Kategória">
           <select value={sCategory} onChange={e => setSCategory(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
             {["woody","oriental","floral","fresh","aromatic"].map(c => <option key={c}>{c}</option>)}
           </select>
-        </F>
+        </SellField>
         {sListingType === "full" && sType === "sell" && (
-          <F label="Állapot">
+          <SellField label="Állapot">
             <select value={sCondition} onChange={e => setSCond(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
               {Object.entries(COND).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-          </F>
+          </SellField>
         )}
       </div>
 
-      {/* Üveg töltöttség csúszka */}
       {sListingType === "full" && sType === "sell" && (
-        <F label="Töltöttségi szint">
+        <SellField label="Töltöttségi szint">
           <BottleSlider value={sFill} onChange={setSFill} />
-        </F>
+        </SellField>
       )}
 
-      <F label="Ár (Ft) *" errKey="price">
-        <input
-          value={sPrice}
-          onChange={e => setSPrice(e.target.value)}
-          placeholder="pl. 35000"
-          type="number"
-          inputMode="numeric"
-          style={{ ...inp, ...(errors.price ? errB : {}) }}
-        />
-      </F>
+      <SellField label="Ár (Ft) *" error={errors.price}>
+        <input ref={refPrice} defaultValue="" placeholder="pl. 35000"
+          type="number" inputMode="numeric"
+          style={{ ...inp, ...(errors.price ? errB : {}) }} />
+      </SellField>
 
-      <F label="Leírás *" errKey="description">
-        <textarea
-          value={sDesc}
-          onChange={e => setSDesc(e.target.value)}
-          rows={5}
+      <SellField label="Leírás *" error={errors.description}>
+        <textarea ref={refDesc} defaultValue="" rows={5}
           placeholder="Batch, állapot részletei, csere lehetőség..."
-          style={{ ...inp, resize: "vertical", ...(errors.description ? errB : {}) }}
-        />
-      </F>
+          style={{ ...inp, resize: "vertical", ...(errors.description ? errB : {}) }} />
+      </SellField>
 
-      <F label="Tagek (vesszővel)">
-        <input
-          value={sTags}
-          onChange={e => setSTags(e.target.value)}
-          placeholder="creed, niche, woody"
+      <SellField label="Tagek (vesszővel)">
+        <input ref={refTags} defaultValue="" placeholder="creed, niche, woody"
           autoComplete="off" autoCorrect="off" spellCheck="false"
-          style={inp}
-        />
-      </F>
+          style={inp} />
+      </SellField>
 
-      {/* Csere checkbox */}
       <div style={{ marginBottom: 26 }}>
         <div onClick={() => setSSwap(v => !v)} style={{ display: "flex", gap: 14, alignItems: "center", cursor: "pointer" }}>
-          <div style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, background: sSwap ? ACC.violetLo : B.card, border: `1.5px solid ${sSwap ? ACC.violet : B.bor}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
+          <div style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, background: sSwap?ACC.violetLo:B.card, border: `1.5px solid ${sSwap?ACC.violet:B.bor}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}>
             {sSwap && <span style={{ color: ACC.violet, fontSize: 14, fontWeight: 700 }}>✓</span>}
           </div>
           <div>
-            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: sSwap ? ACC.violet : T.sec, letterSpacing: 1 }}>Csere is érdekel</div>
-            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.ter, marginTop: 3 }}>Más parfümre is cserélném</div>
+            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, color: sSwap?ACC.violet:T.sec }}>Csere is érdekel</div>
+            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: T.ter, marginTop: 3 }}>Más parfümre is cserélném</div>
           </div>
         </div>
       </div>
 
-      {/* Fotók */}
-      <F label="Fotók (max 5)">
-        <input type="file" accept="image/*" multiple onChange={e => setImages(Array.from(e.target.files).slice(0,5))} style={{ color: ACC.gold, fontFamily: "'DM Mono',monospace", fontSize: 13 }} />
+      <SellField label="Fotók (max 5)">
+        <input type="file" accept="image/*" multiple onChange={e => setImages(Array.from(e.target.files).slice(0,5))} style={{ color: ACC.gold, fontFamily: "'DM Mono',monospace", fontSize: 14 }} />
         {images.length > 0 && (
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             {images.map((img, i) => (
@@ -983,16 +973,15 @@ function Sell({ curProfile, go, setListings, showToast }) {
             ))}
           </div>
         )}
-      </F>
+      </SellField>
 
-      {/* Ikon */}
-      <F label="Ikon">
+      <SellField label="Ikon">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {ICONS.map(ic => (
             <button key={ic} onClick={() => setSIcon(ic)} style={{ background: sIcon===ic?ACC.goldLo:B.card, border: `1px solid ${sIcon===ic?ACC.goldMd:B.bor}`, borderRadius: 9, padding: "9px 13px", cursor: "pointer", fontSize: 22 }}>{ic}</button>
           ))}
         </div>
-      </F>
+      </SellField>
 
       <button onClick={submit} disabled={loading} style={{ background: `linear-gradient(135deg,${ACC.gold},#8a5f1a)`, border: "none", color: T.inv, padding: "18px", width: "100%", borderRadius: 10, cursor: "pointer", fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, marginTop: 12, opacity: loading ? 0.6 : 1 }}>
         {loading ? "Feltöltés..." : "Hirdetés közzététele →"}
