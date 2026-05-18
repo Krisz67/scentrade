@@ -480,162 +480,515 @@ function Market({ listings, profiles, go, setSelId }) {
 
 // ─── DETAIL ───────────────────────────────────────────────────────────────────
 function Detail({ l, u, curProfile, go, setProfileId, setActiveChatWith, onStatusChange }) {
-  const [showOffer,setShowOffer]=useState(false); const [offerVal,setOfferVal]=useState(""); const [faved,setFaved]=useState(false);
-  const [status,setStatus]=useState(l.status||"active");
-  const isDecant=l.listing_type==="decant",isOwn=curProfile?.id===l.user_id;
+  const [showOffer, setShowOffer]     = useState(false);
+  const [offerVal, setOfferVal]       = useState("");
+  const [faved, setFaved]             = useState(false);
+  const [status, setStatus]           = useState(l.status || "active");
+  // Eladva flow
+  const [showSoldModal, setShowSoldModal] = useState(false);
+  const [msgPartners, setMsgPartners]     = useState([]);
+  const [selectedBuyer, setSelectedBuyer] = useState(null);
+  const [loadingPartners, setLoadingPartners] = useState(false);
+  const [buyerSearch, setBuyerSearch]     = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchRef                         = useRef(null);
+  // Értékelés modal (vevőnek az eladóról / eladónak a vevőről)
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewTarget, setReviewTarget]       = useState(null); // { id, name }
+  const [reviewRating, setReviewRating]       = useState(5);
+  const reviewRef                             = useRef(null);
 
-  async function openMsg() { if(!curProfile){go("login");return;} setActiveChatWith(u.id);go("messages"); }
-  async function changeStatus(s) { await supabase.from("listings").update({status:s}).eq("id",l.id); setStatus(s); onStatusChange?.(l.id,s); }
+  const isDecant = l.listing_type === "decant";
+  const isOwn    = curProfile?.id === l.user_id;
 
-  const sCol=status==="sold"?ACC.green:status==="pending"?"#ffd97e":ACC.gold;
+  async function openMsg() {
+    if (!curProfile) { go("login"); return; }
+    setActiveChatWith(u.id); go("messages");
+  }
+
+  // Megnyitja az "Eladva" modalt és betölti az üzenetpartnereket
+  async function openSoldModal() {
+    setLoadingPartners(true); setShowSoldModal(true);
+    setBuyerSearch(""); setSearchResults([]); setSelectedBuyer(null);
+    const { data } = await supabase.from("messages").select("*")
+      .or(`from_user.eq.${curProfile.id},to_user.eq.${curProfile.id}`)
+      .order("created_at", { ascending: false });
+    if (!data) { setLoadingPartners(false); return; }
+    const seen = new Set(), partners = [];
+    data.forEach(m => {
+      const pid = m.from_user === curProfile.id ? m.to_user : m.from_user;
+      if (!seen.has(pid)) { seen.add(pid); partners.push(pid); }
+    });
+    const { data: profiles } = await supabase.from("profiles").select("id,name,sales").in("id", partners);
+    setMsgPartners(profiles || []);
+    setLoadingPartners(false);
+  }
+
+  // Felhasználónév keresés
+  async function searchBuyer(q) {
+    setBuyerSearch(q);
+    if (q.trim().length < 2) { setSearchResults([]); return; }
+    setSearchLoading(true);
+    const { data } = await supabase.from("profiles")
+      .select("id,name,sales")
+      .ilike("name", `%${q}%`)
+      .neq("id", curProfile.id)
+      .limit(6);
+    setSearchResults(data || []);
+    setSearchLoading(false);
+  }
+
+  // Eladva megjelölés a kiválasztott vevővel
+  async function confirmSold() {
+    if (!selectedBuyer) return;
+    await supabase.from("listings").update({
+      status:  "sold",
+      buyer_id: selectedBuyer.id,
+    }).eq("id", l.id);
+    setStatus("sold");
+    onStatusChange?.(l.id, "sold");
+    setShowSoldModal(false);
+
+    // Értékelési felkérés küldése a vevőnek e-mailben
+    try {
+      const { data: buyerProfile } = await supabase.from("profiles").select("email,name").eq("id", selectedBuyer.id).single();
+      if (buyerProfile?.email) {
+        await supabase.functions.invoke("clever-worker", {
+          body: {
+            to_email:    buyerProfile.email,
+            from_name:   curProfile.name,
+            message_text: `Sikeresen megkaptad: ${l.brand} ${l.name}\n\nKérlek értékeld az eladót a Scentrade-en – ez segít a közösségnek!`,
+            cta_url:     `https://scentrade.vercel.app`,
+            cta_text:    "Értékelés írása →",
+          }
+        });
+      }
+    } catch(e) { console.warn(e); }
+
+    // Saját értékelési ablak megnyitása a vevőről
+    setReviewTarget(selectedBuyer);
+    setShowReviewModal(true);
+  }
+
+  async function submitReview() {
+    if (!reviewTarget || !curProfile) return;
+    const text = reviewRef.current?.value?.trim() || "";
+    await supabase.from("reviews").insert({
+      from_user:        curProfile.id,
+      to_user:          reviewTarget.id,
+      rating:           reviewRating,
+      text,
+      transaction_type: "verified", // verified purchase jelölés
+      listing_id:       l.id,
+    });
+    // Eladások számlálója nő az eladónál
+    await supabase.from("profiles").update({ sales: (u?.sales || 0) + 1 }).eq("id", curProfile.id);
+    setShowReviewModal(false);
+    setReviewTarget(null);
+  }
+
+  async function changeStatus(s) {
+    if (s === "sold") { openSoldModal(); return; } // eladva → modal
+    await supabase.from("listings").update({ status: s }).eq("id", l.id);
+    setStatus(s); onStatusChange?.(l.id, s);
+  }
+
+  const sCol = status === "sold" ? ACC.green : status === "pending" ? "#ffd97e" : ACC.gold;
+
   return (
-    <div style={{ paddingTop:60,maxWidth:980,margin:"0 auto",padding:"80px 40px" }}>
-      <button onClick={()=>go("market")} style={{ background:"none",border:"none",color:T.sec,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:1,marginBottom:32 }}>← VISSZA A PIACRA</button>
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 320px",gap:44 }}>
+    <div style={{ paddingTop: 60, maxWidth: 980, margin: "0 auto", padding: "80px 40px" }}>
+      <button onClick={() => go("market")} style={{ background: "none", border: "none", color: T.sec, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 10, letterSpacing: 1, marginBottom: 32 }}>← VISSZA A PIACRA</button>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 44 }}>
         <div>
-          <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:22 }}>
-            <Pill text={l.type==="buy"?"Keresett":"Eladó"} bg={l.type==="buy"?ACC.blueLo:ACC.goldLo} col={l.type==="buy"?ACC.blue:ACC.gold}/>
-            <Pill text={isDecant?"Dekant":"Teljes üveg"} bg={isDecant?"#c87a2018":"#38a16a18"} col={isDecant?"#e09040":ACC.green}/>
-            {l.condition&&<Pill text={COND[l.condition]} bg={COND_COLOR[l.condition]+"18"} col={COND_COLOR[l.condition]}/>}
-            {status!=="active"&&<Pill text={status==="sold"?"Eladva":"Függőben"} bg={sCol+"18"} col={sCol}/>}
-            {l.swap_ok&&<Pill text="Csere OK" bg={ACC.violetLo} col={ACC.violet}/>}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
+            <Pill text={l.type === "buy" ? "Keresett" : "Eladó"} bg={l.type === "buy" ? ACC.blueLo : ACC.goldLo} col={l.type === "buy" ? ACC.blue : ACC.gold} />
+            <Pill text={isDecant ? "Dekant" : "Teljes üveg"} bg={isDecant ? "#c87a2018" : "#38a16a18"} col={isDecant ? "#e09040" : ACC.green} />
+            {l.condition && <Pill text={COND[l.condition]} bg={COND_COLOR[l.condition] + "18"} col={COND_COLOR[l.condition]} />}
+            {status !== "active" && <Pill text={status === "sold" ? "Eladva" : "Függőben"} bg={sCol + "18"} col={sCol} />}
+            {l.swap_ok && <Pill text="Csere OK" bg={ACC.violetLo} col={ACC.violet} />}
           </div>
-          <div style={{ fontSize:68,marginBottom:20 }}>{l.icon||"🫙"}</div>
-          <p style={{ fontFamily:"'DM Mono',monospace",fontSize:11,color:T.sec,letterSpacing:3,marginBottom:4 }}>{(l.brand||"").toUpperCase()}</p>
-          <h1 style={{ fontFamily:"'Playfair Display',serif",fontSize:50,color:T.h,fontWeight:400,lineHeight:1.05,marginBottom:8 }}>{l.name}</h1>
-          <p style={{ color:T.sec,marginBottom:26,fontSize:14 }}>{isDecant?`${l.decant_ml}ml spray dekant`:`${l.size||""}`}</p>
-          {!isDecant&&l.fill&&<BottleDetail pct={l.fill}/>}
-          <div style={{ fontFamily:"'Playfair Display',serif",fontSize:48,color:ACC.gold,marginBottom:36 }}>{(l.price||0).toLocaleString("hu-HU")} Ft</div>
-          <div style={{ background:B.card,border:`1px solid ${B.bor}`,borderRadius:12,padding:"22px 26px",marginBottom:24 }}>
-            <p style={{ fontFamily:"'DM Mono',monospace",fontSize:10,color:T.sec,letterSpacing:2,marginBottom:14 }}>LEÍRÁS</p>
-            <p style={{ color:T.h,lineHeight:1.9,fontSize:15 }}>{l.description}</p>
+          <div style={{ fontSize: 68, marginBottom: 20 }}>{l.icon || "🫙"}</div>
+          <p style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: T.sec, letterSpacing: 3, marginBottom: 4 }}>{(l.brand || "").toUpperCase()}</p>
+          <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 50, color: T.h, fontWeight: 400, lineHeight: 1.05, marginBottom: 8 }}>{l.name}</h1>
+          <p style={{ color: T.sec, marginBottom: 26, fontSize: 14 }}>{isDecant ? `${l.decant_ml}ml spray dekant` : `${l.size || ""}`}</p>
+          {!isDecant && l.fill && <BottleDetail pct={l.fill} />}
+          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 48, color: ACC.gold, marginBottom: 36 }}>{(l.price || 0).toLocaleString("hu-HU")} Ft</div>
+          <div style={{ background: B.card, border: `1px solid ${B.bor}`, borderRadius: 12, padding: "22px 26px", marginBottom: 24 }}>
+            <p style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.sec, letterSpacing: 2, marginBottom: 14 }}>LEÍRÁS</p>
+            <p style={{ color: T.h, lineHeight: 1.9, fontSize: 15 }}>{l.description}</p>
           </div>
-          {l.tags?.length>0&&(
-            <div style={{ display:"flex",flexWrap:"wrap",gap:8,marginBottom:24 }}>
-              {l.tags.map(t=><span key={t} style={{ background:B.card,border:`1px solid ${B.bor}`,color:T.sec,padding:"4px 13px",borderRadius:20,fontSize:12,fontFamily:"'DM Mono',monospace" }}>#{t}</span>)}
+          {l.tags?.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 24 }}>
+              {l.tags.map(t => <span key={t} style={{ background: B.card, border: `1px solid ${B.bor}`, color: T.sec, padding: "4px 13px", borderRadius: 20, fontSize: 12, fontFamily: "'DM Mono',monospace" }}>#{t}</span>)}
             </div>
           )}
-          {isOwn&&(
-            <div style={{ background:B.card,border:`1px solid ${B.bor}`,borderRadius:12,padding:"20px 24px" }}>
-              <p style={{ fontFamily:"'DM Mono',monospace",fontSize:10,color:T.sec,letterSpacing:2,marginBottom:16 }}>HIRDETÉS STÁTUSZA</p>
-              <div style={{ display:"flex",gap:9,flexWrap:"wrap" }}>
-                {[["active","Aktív",ACC.gold],["pending","Függőben","#ffd97e"],["sold","Eladva",ACC.green]].map(([s,label,c])=>(
-                  <button key={s} onClick={()=>changeStatus(s)} style={{ background:status===s?c+"18":"transparent",border:`1px solid ${status===s?c+"44":B.bor}`,color:status===s?c:T.ter,padding:"8px 18px",borderRadius:8,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:1,transition:"all .15s" }}>{label}</button>
+          {/* Saját hirdetés státusz kezelő */}
+          {isOwn && (
+            <div style={{ background: B.card, border: `1px solid ${B.bor}`, borderRadius: 12, padding: "20px 24px" }}>
+              <p style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.sec, letterSpacing: 2, marginBottom: 16 }}>HIRDETÉS STÁTUSZA</p>
+              <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+                {[["active","Aktív",ACC.gold],["pending","Függőben","#ffd97e"],["sold","Eladva",ACC.green]].map(([s, label, c]) => (
+                  <button key={s} onClick={() => changeStatus(s)} style={{ background: status===s?c+"18":"transparent", border: `1px solid ${status===s?c+"44":B.bor}`, color: status===s?c:T.ter, padding: "8px 18px", borderRadius: 8, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 10, letterSpacing: 1, transition: "all .15s" }}>{label}</button>
                 ))}
               </div>
+              {status === "sold" && l.buyer_id && (
+                <p style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.ter, marginTop: 12 }}>✓ Vevő rögzítve</p>
+              )}
             </div>
           )}
         </div>
-        <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-          <div style={{ background:B.card,border:`1px solid ${B.bor}`,borderRadius:14,padding:"24px 22px" }}>
-            <p style={{ fontFamily:"'DM Mono',monospace",fontSize:10,color:T.sec,letterSpacing:2,marginBottom:20 }}>ELADÓ</p>
-            <div style={{ display:"flex",gap:14,alignItems:"center",marginBottom:16,cursor:"pointer" }} onClick={()=>{setProfileId(u?.id);go("profile");}}>
-              <Ava u={u} size={52}/>
+
+        {/* Jobb panel */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ background: B.card, border: `1px solid ${B.bor}`, borderRadius: 14, padding: "24px 22px" }}>
+            <p style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.sec, letterSpacing: 2, marginBottom: 20 }}>ELADÓ</p>
+            <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 16, cursor: "pointer" }} onClick={() => { setProfileId(u?.id); go("profile"); }}>
+              <Ava u={u} size={52} />
               <div>
-                <div style={{ fontFamily:"'Playfair Display',serif",fontSize:21,color:T.h }}>{u?.name}{u?.verified&&<span style={{ color:ACC.gold,fontSize:14 }}> ✓</span>}</div>
-                <div style={{ fontSize:12,color:T.sec,marginTop:3 }}>📍 {u?.location}</div>
+                <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 21, color: T.h }}>{u?.name}{u?.verified && <span style={{ color: ACC.gold, fontSize: 14 }}> ✓</span>}</div>
+                <div style={{ fontSize: 12, color: T.sec, marginTop: 3 }}>📍 {u?.location}</div>
               </div>
             </div>
-            <div style={{ marginBottom:14 }}>
-              <RankBadge sales={u?.sales||0} size="lg"/>
-              <span style={{ fontFamily:"'DM Mono',monospace",fontSize:11,color:T.sec,marginLeft:10 }}>{u?.sales||0} eladás</span>
+            <div style={{ marginBottom: 14 }}>
+              <RankBadge sales={u?.sales || 0} size="lg" />
+              <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: T.sec, marginLeft: 10 }}>{u?.sales || 0} eladás</span>
             </div>
-            <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-              <Stars v={u?.rating||0} size={16}/><span style={{ fontSize:13,color:T.sec }}>{u?.rating||0} · {u?.rating_count||0} értékelés</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Stars v={u?.rating || 0} size={16} />
+              <span style={{ fontSize: 13, color: T.sec }}>{u?.rating || 0} · {u?.rating_count || 0} értékelés</span>
             </div>
           </div>
-          {!isOwn&&status!=="sold"&&(
+
+          {!isOwn && status !== "sold" && (
             <>
-              <button onClick={openMsg} style={{ background:`linear-gradient(135deg,${ACC.gold},#8a5f1a)`,border:"none",color:T.inv,padding:"15px",borderRadius:10,cursor:"pointer",fontFamily:"'Playfair Display',serif",fontSize:17,fontWeight:700 }}>✉ Üzenet küldése</button>
-              <button onClick={()=>setFaved(!faved)} style={{ background:"transparent",border:`1px solid ${faved?ACC.goldMd:B.bor}`,color:faved?ACC.gold:T.sec,padding:"12px",borderRadius:10,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:1 }}>{faved?"♥ KEDVELVE":"♡ KEDVELÉS"}</button>
-              <button onClick={()=>setShowOffer(!showOffer)} style={{ background:"transparent",border:`1px solid ${ACC.goldMd}`,color:ACC.gold,padding:"12px",borderRadius:10,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:11,letterSpacing:1 }}>AJÁNLAT KÜLDÉSE</button>
-              {showOffer&&(
-                <div style={{ background:B.card,border:`1px solid ${B.bor}`,borderRadius:10,padding:16 }}>
-                  <input value={offerVal} onChange={e=>setOfferVal(e.target.value)} placeholder="Ajánlott ár (Ft)" type="number" style={{ background:B.main,border:`1px solid ${B.bor}`,color:T.h,padding:"9px 13px",borderRadius:7,width:"100%",fontFamily:"'DM Mono',monospace",fontSize:12,marginBottom:9,boxSizing:"border-box",outline:"none" }}/>
-                  <button onClick={openMsg} style={{ background:ACC.goldLo,border:`1px solid ${ACC.goldMd}`,color:ACC.gold,padding:"9px",width:"100%",borderRadius:7,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:11 }}>Ajánlat üzenetben →</button>
+              <button onClick={openMsg} style={{ background: `linear-gradient(135deg,${ACC.gold},#8a5f1a)`, border: "none", color: T.inv, padding: "15px", borderRadius: 10, cursor: "pointer", fontFamily: "'Playfair Display',serif", fontSize: 17, fontWeight: 700 }}>✉ Üzenet küldése</button>
+              <button onClick={() => setFaved(!faved)} style={{ background: "transparent", border: `1px solid ${faved ? ACC.goldMd : B.bor}`, color: faved ? ACC.gold : T.sec, padding: "12px", borderRadius: 10, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: 1 }}>{faved ? "♥ KEDVELVE" : "♡ KEDVELÉS"}</button>
+              <button onClick={() => setShowOffer(!showOffer)} style={{ background: "transparent", border: `1px solid ${ACC.goldMd}`, color: ACC.gold, padding: "12px", borderRadius: 10, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 11, letterSpacing: 1 }}>AJÁNLAT KÜLDÉSE</button>
+              {showOffer && (
+                <div style={{ background: B.card, border: `1px solid ${B.bor}`, borderRadius: 10, padding: 16 }}>
+                  <input value={offerVal} onChange={e => setOfferVal(e.target.value)} placeholder="Ajánlott ár (Ft)" type="number"
+                    style={{ background: B.main, border: `1px solid ${B.bor}`, color: T.h, padding: "9px 13px", borderRadius: 7, width: "100%", fontFamily: "'DM Mono',monospace", fontSize: 16, marginBottom: 9, boxSizing: "border-box", outline: "none" }} />
+                  <button onClick={openMsg} style={{ background: ACC.goldLo, border: `1px solid ${ACC.goldMd}`, color: ACC.gold, padding: "9px", width: "100%", borderRadius: 7, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 11 }}>Ajánlat üzenetben →</button>
                 </div>
               )}
             </>
           )}
-          {status==="sold"&&<div style={{ background:ACC.greenLo,border:`1px solid ${ACC.green}30`,borderRadius:10,padding:"16px",textAlign:"center" }}><p style={{ fontFamily:"'DM Mono',monospace",fontSize:12,color:ACC.green,letterSpacing:1 }}>✓ ELADVA</p></div>}
-          <div style={{ background:B.card,border:`1px solid ${B.bor}`,borderRadius:10,padding:"16px 20px" }}>
-            <p style={{ fontFamily:"'DM Mono',monospace",fontSize:10,color:T.sec,letterSpacing:1,marginBottom:12 }}>BIZTONSÁGOS VÁSÁRLÁS</p>
-            {["Valódi értékelések","PM alapú egyeztetés","Hitelesített eladói jelvény","Átverés bejelentés"].map(txt=>(
-              <div key={txt} style={{ display:"flex",gap:10,fontSize:12,color:T.sec,marginBottom:8 }}><span style={{ color:ACC.gold }}>✓</span>{txt}</div>
+
+          {/* Vevő: értékelés írása az eladóról (ha eladva) */}
+          {!isOwn && status === "sold" && l.buyer_id === curProfile?.id && (
+            <button onClick={() => { setReviewTarget(u); setShowReviewModal(true); }}
+              style={{ background: `linear-gradient(135deg,${ACC.gold},#8a5f1a)`, border: "none", color: T.inv, padding: "14px", borderRadius: 10, cursor: "pointer", fontFamily: "'Playfair Display',serif", fontSize: 16, fontWeight: 700 }}>
+              ⭐ Értékelem az eladót
+            </button>
+          )}
+
+          {status === "sold" && l.buyer_id !== curProfile?.id && (
+            <div style={{ background: ACC.greenLo, border: `1px solid ${ACC.green}30`, borderRadius: 10, padding: "16px", textAlign: "center" }}>
+              <p style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, color: ACC.green, letterSpacing: 1 }}>✓ ELADVA</p>
+            </div>
+          )}
+
+          <div style={{ background: B.card, border: `1px solid ${B.bor}`, borderRadius: 10, padding: "16px 20px" }}>
+            <p style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.sec, letterSpacing: 1, marginBottom: 12 }}>BIZTONSÁGOS VÁSÁRLÁS</p>
+            {["Valódi értékelések", "PM alapú egyeztetés", "Hitelesített eladói jelvény", "Átverés bejelentés"].map(txt => (
+              <div key={txt} style={{ display: "flex", gap: 10, fontSize: 12, color: T.sec, marginBottom: 8 }}><span style={{ color: ACC.gold }}>✓</span>{txt}</div>
             ))}
           </div>
         </div>
       </div>
+
+      {/* ── ELADVA MODAL – vevő kiválasztása ── */}
+      {showSoldModal && (
+        <Modal onClose={() => setShowSoldModal(false)}>
+          <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, color: T.h, fontWeight: 400, marginBottom: 8 }}>Kinek adtad el?</h2>
+          <p style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: T.sec, marginBottom: 22, lineHeight: 1.7 }}>
+            Keresd meg névvel, vagy válaszd ki az üzenetpartnereid közül.
+          </p>
+
+          {/* Keresés felhasználónév alapján */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.sec, letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>Keresés névvel</div>
+            <div style={{ position: "relative" }}>
+              <input
+                ref={searchRef}
+                value={buyerSearch}
+                onChange={e => searchBuyer(e.target.value)}
+                placeholder="pl. illatmester_bp"
+                autoComplete="off" autoCorrect="off" spellCheck="false"
+                style={{ width: "100%", background: B.main, border: `1px solid ${B.bor}`, color: T.h, padding: "12px 16px", borderRadius: 9, fontFamily: "'DM Mono',monospace", fontSize: 16, outline: "none", boxSizing: "border-box" }}
+              />
+              {searchLoading && (
+                <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: T.ter, fontSize: 12 }}>…</span>
+              )}
+            </div>
+            {/* Keresési találatok */}
+            {searchResults.length > 0 && (
+              <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                {searchResults.map(p => (
+                  <div key={p.id} onClick={() => { setSelectedBuyer(p); setBuyerSearch(p.name); setSearchResults([]); }}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 9, cursor: "pointer",
+                      background: selectedBuyer?.id === p.id ? ACC.goldLo : B.card,
+                      border: `1px solid ${selectedBuyer?.id === p.id ? ACC.goldMd : B.bor}` }}>
+                    <Ava u={p} size={34} />
+                    <div>
+                      <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, color: T.h }}>{p.name}</div>
+                      <RankBadge sales={p.sales || 0} />
+                    </div>
+                    {selectedBuyer?.id === p.id && <span style={{ color: ACC.gold, fontSize: 18, marginLeft: "auto" }}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Elválasztó */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+            <div style={{ flex: 1, height: 1, background: B.bor }} />
+            <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.ter, letterSpacing: 2 }}>VAGY</span>
+            <div style={{ flex: 1, height: 1, background: B.bor }} />
+          </div>
+
+          {/* Üzenetpartnerek listája */}
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.sec, letterSpacing: 2, marginBottom: 10, textTransform: "uppercase" }}>Üzenetpartnereid</div>
+          {loadingPartners ? (
+            <p style={{ color: T.ter, fontFamily: "'DM Mono',monospace", fontSize: 11, textAlign: "center", padding: "16px 0" }}>Betöltés...</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 24, maxHeight: 240, overflowY: "auto" }}>
+              {msgPartners.length === 0 && (
+                <p style={{ color: T.ter, fontFamily: "'DM Mono',monospace", fontSize: 11, padding: "12px 0" }}>Még nincs üzenetpartnered.</p>
+              )}
+              {msgPartners.map(p => (
+                <div key={p.id} onClick={() => { setSelectedBuyer(p); setBuyerSearch(""); setSearchResults([]); }}
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 9, cursor: "pointer",
+                    background: selectedBuyer?.id === p.id ? ACC.goldLo : B.card,
+                    border: `1px solid ${selectedBuyer?.id === p.id ? ACC.goldMd : B.bor}`,
+                    transition: "all .15s" }}>
+                  <Ava u={p} size={36} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, color: T.h }}>{p.name}</div>
+                    <RankBadge sales={p.sales || 0} />
+                  </div>
+                  {selectedBuyer?.id === p.id && <span style={{ color: ACC.gold, fontSize: 18 }}>✓</span>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Kiválasztott vevő összefoglaló */}
+          {selectedBuyer && (
+            <div style={{ background: ACC.greenLo, border: `1px solid ${ACC.green}30`, borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+              <Ava u={selectedBuyer} size={32} />
+              <div>
+                <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: ACC.green, letterSpacing: 1, marginBottom: 2 }}>KIVÁLASZTOTT VEVŐ</div>
+                <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 16, color: T.h }}>{selectedBuyer.name}</div>
+              </div>
+              <button onClick={() => setSelectedBuyer(null)} style={{ marginLeft: "auto", background: "none", border: "none", color: T.ter, cursor: "pointer", fontSize: 18 }}>×</button>
+            </div>
+          )}
+
+          <button onClick={confirmSold} disabled={!selectedBuyer}
+            style={{ background: selectedBuyer ? `linear-gradient(135deg,${ACC.green},#2a7a3a)` : B.borHi, border: "none", color: selectedBuyer ? "#0d0a06" : T.ter, padding: "15px", width: "100%", borderRadius: 9, cursor: selectedBuyer ? "pointer" : "not-allowed", fontFamily: "'Playfair Display',serif", fontSize: 17, fontWeight: 700 }}>
+            {selectedBuyer ? `✓ Eladva – ${selectedBuyer.name}` : "Válassz vevőt a megerősítéshez"}
+          </button>
+        </Modal>
+      )}
+
+      {/* ── ÉRTÉKELÉS MODAL ── */}
+      {showReviewModal && reviewTarget && (
+        <Modal onClose={() => setShowReviewModal(false)}>
+          <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, color: T.h, fontWeight: 400, marginBottom: 6 }}>Értékeld: {reviewTarget.name}</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+            <Pill text="✓ Verified Purchase" bg={ACC.greenLo} col={ACC.green} />
+          </div>
+          <div style={{ marginBottom: 20 }}><Stars v={reviewRating} size={32} interactive onChange={setReviewRating} /></div>
+          <textarea ref={reviewRef} defaultValue="" rows={4} placeholder="Hogyan ment az üzlet? Csomagolás, gyorsaság, kommunikáció..."
+            style={{ background: B.card, border: `1px solid ${B.bor}`, color: T.h, padding: "13px 15px", borderRadius: 9, width: "100%", fontFamily: "'DM Mono',monospace", fontSize: 16, resize: "vertical", outline: "none", boxSizing: "border-box", marginBottom: 18 }} />
+          <button onClick={submitReview} style={{ background: `linear-gradient(135deg,${ACC.gold},#8a5f1a)`, border: "none", color: T.inv, padding: "14px", width: "100%", borderRadius: 9, cursor: "pointer", fontFamily: "'Playfair Display',serif", fontSize: 17, fontWeight: 700 }}>Értékelés elküldése →</button>
+        </Modal>
+      )}
     </div>
   );
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
 function Profile({ pu, curProfile, go, listings, setActiveChatWith, onSignOut }) {
-  const [tab,setTab]=useState("listings"); const [reviews,setReviews]=useState([]); const [showRM,setShowRM]=useState(false);
-  const [myRating,setMyRating]=useState(5); const [myText,setMyText]=useState("");
-  const isOwn=curProfile?.id===pu?.id; const uls=listings.filter(l=>l.user_id===pu?.id);
-  useEffect(()=>{if(!pu?.id)return;supabase.from("reviews").select("*").eq("to_user",pu.id).then(({data})=>setReviews(data||[]));},[pu?.id]);
+  const [tab, setTab]           = useState("listings");
+  const [reviews, setReviews]   = useState([]);
+  const [showRM, setShowRM]     = useState(false);
+  const [myRating, setMyRating] = useState(5);
+  const [myText, setMyText]     = useState("");
+  // Wishlist state
+  const [wishlist, setWishlist]   = useState([]);
+  const [showWish, setShowWish]   = useState(false);
+  const wishRef                   = useRef(null);
+
+  const isOwn = curProfile?.id === pu?.id;
+  const uls   = listings.filter(l => l.user_id === pu?.id);
+
+  useEffect(() => {
+    if (!pu?.id) return;
+    supabase.from("reviews").select("*").eq("to_user", pu.id).then(({ data }) => setReviews(data || []));
+    supabase.from("wishlists").select("*").eq("user_id", pu.id).order("created_at", { ascending: false }).then(({ data }) => setWishlist(data || []));
+  }, [pu?.id]);
+
   async function submitReview() {
-    if(!curProfile)return;
-    await supabase.from("reviews").insert({from_user:curProfile.id,to_user:pu.id,rating:myRating,text:myText,transaction_type:"full"});
-    setShowRM(false);setMyText("");
-    const {data}=await supabase.from("reviews").select("*").eq("to_user",pu.id);setReviews(data||[]);
+    if (!curProfile) return;
+    await supabase.from("reviews").insert({ from_user: curProfile.id, to_user: pu.id, rating: myRating, text: myText, transaction_type: "full" });
+    setShowRM(false); setMyText("");
+    const { data } = await supabase.from("reviews").select("*").eq("to_user", pu.id);
+    setReviews(data || []);
   }
-  if(!pu)return null;
-  const avg=reviews.length?(reviews.reduce((s,r)=>s+r.rating,0)/reviews.length).toFixed(1):(pu.rating||0).toFixed(1);
+
+  async function addWish() {
+    const val = wishRef.current?.value?.trim();
+    if (!val || !curProfile) return;
+    const [brand, ...rest] = val.split(" ");
+    const name = rest.join(" ") || brand;
+    const { data } = await supabase.from("wishlists").insert({
+      user_id: curProfile.id,
+      brand: brand,
+      name: rest.length ? name : "",
+      raw: val,
+    }).select().single();
+    if (data) { setWishlist(p => [data, ...p]); wishRef.current.value = ""; }
+  }
+
+  async function removeWish(id) {
+    await supabase.from("wishlists").delete().eq("id", id);
+    setWishlist(p => p.filter(w => w.id !== id));
+  }
+
+  if (!pu) return null;
+  const avg = reviews.length ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : (pu.rating || 0).toFixed(1);
+
+  const tabList = [
+    ["listings", `Hirdetések (${uls.length})`],
+    ["reviews",  `Értékelések (${reviews.length})`],
+    ["wishlist", `Kívánlista (${wishlist.length})`],
+  ];
+
   return (
-    <div style={{ paddingTop:60,maxWidth:980,margin:"0 auto",padding:"80px 40px" }}>
-      <div style={{ display:"flex",gap:28,alignItems:"flex-start",marginBottom:40,flexWrap:"wrap" }}>
-        <Ava u={pu} size={92}/>
-        <div style={{ flex:1 }}>
-          <div style={{ display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:12 }}>
-            <h1 style={{ fontFamily:"'Playfair Display',serif",fontSize:42,color:T.h,fontWeight:400 }}>{pu.name}</h1>
-            {pu.verified&&<Pill text="Hitelesített"/>}
-            <RankBadge sales={pu.sales||0} size="lg"/>
+    <div style={{ paddingTop: 60, maxWidth: 980, margin: "0 auto", padding: "80px 40px" }}>
+      {/* Fejléc */}
+      <div style={{ display: "flex", gap: 28, alignItems: "flex-start", marginBottom: 40, flexWrap: "wrap" }}>
+        <Ava u={pu} size={92} />
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+            <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 42, color: T.h, fontWeight: 400 }}>{pu.name}</h1>
+            {pu.verified && <Pill text="Hitelesített" />}
+            <RankBadge sales={pu.sales || 0} size="lg" />
           </div>
-          <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:12 }}>
-            <Stars v={Number(avg)} size={18}/>
-            <span style={{ fontFamily:"'Playfair Display',serif",fontSize:21,color:ACC.gold }}>{avg}</span>
-            <span style={{ color:T.sec,fontSize:14 }}>({reviews.length} értékelés)</span>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
+            <Stars v={Number(avg)} size={18} />
+            <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 21, color: ACC.gold }}>{avg}</span>
+            <span style={{ color: T.sec, fontSize: 14 }}>({reviews.length} értékelés)</span>
           </div>
-          <p style={{ color:T.sec,fontSize:13,marginBottom:12 }}>📍 {pu.location} · Tag: {pu.created_at?.slice(0,7)} óta</p>
-          <p style={{ color:T.sec,fontSize:14,lineHeight:1.85,maxWidth:500 }}>{pu.bio}</p>
+          <p style={{ color: T.sec, fontSize: 13, marginBottom: 12 }}>📍 {pu.location} · Tag: {pu.created_at?.slice(0, 7)} óta</p>
+          <p style={{ color: T.sec, fontSize: 14, lineHeight: 1.85, maxWidth: 500 }}>{pu.bio}</p>
         </div>
-        <div style={{ display:"flex",flexDirection:"column",gap:9 }}>
-          {!isOwn&&curProfile&&(
+        <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+          {!isOwn && curProfile && (
             <>
-              <button onClick={()=>{setActiveChatWith(pu.id);go("messages");}} style={{ background:`linear-gradient(135deg,${ACC.gold},#8a5f1a)`,border:"none",color:T.inv,padding:"10px 24px",borderRadius:9,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:10,fontWeight:700,letterSpacing:1 }}>✉ ÜZENET</button>
-              <button onClick={()=>setShowRM(true)} style={{ background:"transparent",border:`1px solid ${ACC.goldMd}`,color:ACC.gold,padding:"10px 24px",borderRadius:9,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:1 }}>⭐ ÉRTÉKELÉS</button>
+              <button onClick={() => { setActiveChatWith(pu.id); go("messages"); }} style={{ background: `linear-gradient(135deg,${ACC.gold},#8a5f1a)`, border: "none", color: T.inv, padding: "10px 24px", borderRadius: 9, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>✉ ÜZENET</button>
+              <button onClick={() => setShowRM(true)} style={{ background: "transparent", border: `1px solid ${ACC.goldMd}`, color: ACC.gold, padding: "10px 24px", borderRadius: 9, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 10, letterSpacing: 1 }}>⭐ ÉRTÉKELÉS</button>
             </>
           )}
-          {isOwn&&<button onClick={onSignOut} style={{ background:"transparent",border:`1px solid ${ACC.red}38`,color:ACC.red,padding:"10px 24px",borderRadius:9,cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:1 }}>KIJELENTKEZÉS</button>}
+          {isOwn && <button onClick={onSignOut} style={{ background: "transparent", border: `1px solid ${ACC.red}38`, color: ACC.red, padding: "10px 24px", borderRadius: 9, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 10, letterSpacing: 1 }}>KIJELENTKEZÉS</button>}
         </div>
       </div>
-      {isOwn&&<div style={{ marginBottom:36 }}><RankProgress sales={pu.sales||0}/></div>}
-      <div style={{ display:"flex",borderBottom:`1px solid ${B.bor}`,marginBottom:32 }}>
-        {[["listings",`Hirdetések (${uls.length})`],["reviews",`Értékelések (${reviews.length})`]].map(([k,l])=>(
-          <button key={k} onClick={()=>setTab(k)} style={{ background:"transparent",border:"none",borderBottom:tab===k?`2px solid ${ACC.gold}`:"2px solid transparent",color:tab===k?ACC.gold:T.sec,padding:"13px 24px",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:1,textTransform:"uppercase" }}>{l}</button>
+
+      {isOwn && <div style={{ marginBottom: 36 }}><RankProgress sales={pu.sales || 0} /></div>}
+
+      {/* Tabs */}
+      <div style={{ display: "flex", borderBottom: `1px solid ${B.bor}`, marginBottom: 32 }}>
+        {tabList.map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} style={{ background: "transparent", border: "none", borderBottom: tab === k ? `2px solid ${ACC.gold}` : "2px solid transparent", color: tab === k ? ACC.gold : T.sec, padding: "13px 22px", cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>{l}</button>
         ))}
       </div>
-      {tab==="listings"&&<div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(262px,1fr))",gap:18 }}>{uls.map(l=><Card key={l.id} l={l} u={pu}/>)}{uls.length===0&&<p style={{ color:T.ter,fontFamily:"'DM Mono',monospace",fontSize:12 }}>Nincs hirdetés.</p>}</div>}
-      {tab==="reviews"&&(
-        <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
-          {reviews.map((r,i)=>(
-            <div key={i} style={{ background:B.card,border:`1px solid ${B.bor}`,borderRadius:12,padding:"20px 24px" }}>
-              <div style={{ display:"flex",justifyContent:"space-between",marginBottom:12 }}><Stars v={r.rating}/><span style={{ color:T.ter,fontFamily:"'DM Mono',monospace",fontSize:10 }}>{r.created_at?.slice(0,7)}</span></div>
-              <p style={{ color:T.sec,fontSize:14,lineHeight:1.8 }}>{r.text}</p>
-            </div>
-          ))}
-          {reviews.length===0&&<p style={{ color:T.ter,fontFamily:"'DM Mono',monospace",fontSize:12 }}>Még nincs értékelés.</p>}
+
+      {/* Hirdetések tab */}
+      {tab === "listings" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(262px,1fr))", gap: 18 }}>
+          {uls.map(l => <Card key={l.id} l={l} u={pu} />)}
+          {uls.length === 0 && <p style={{ color: T.ter, fontFamily: "'DM Mono',monospace", fontSize: 12 }}>Nincs hirdetés.</p>}
         </div>
       )}
-      {showRM&&(
-        <Modal onClose={()=>setShowRM(false)}>
-          <h2 style={{ fontFamily:"'Playfair Display',serif",fontSize:28,color:T.h,fontWeight:400,marginBottom:24 }}>Értékelés írása</h2>
-          <div style={{ marginBottom:22 }}><Stars v={myRating} size={30} interactive onChange={setMyRating}/></div>
-          <textarea value={myText} onChange={e=>setMyText(e.target.value)} rows={4} placeholder="Írd le tapasztalatod..." style={{ background:B.card,border:`1px solid ${B.bor}`,color:T.h,padding:"13px 15px",borderRadius:9,width:"100%",fontFamily:"'DM Mono',monospace",fontSize:12,resize:"vertical",outline:"none",boxSizing:"border-box",marginBottom:18 }}/>
-          <button onClick={submitReview} style={{ background:`linear-gradient(135deg,${ACC.gold},#8a5f1a)`,border:"none",color:T.inv,padding:"14px",width:"100%",borderRadius:9,cursor:"pointer",fontFamily:"'Playfair Display',serif",fontSize:17,fontWeight:700 }}>Értékelés küldése →</button>
+
+      {/* Értékelések tab */}
+      {tab === "reviews" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {reviews.map((r, i) => (
+            <div key={i} style={{ background: B.card, border: `1px solid ${B.bor}`, borderRadius: 12, padding: "20px 24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                <Stars v={r.rating} />
+                <span style={{ color: T.ter, fontFamily: "'DM Mono',monospace", fontSize: 10 }}>{r.created_at?.slice(0, 7)}</span>
+              </div>
+              <p style={{ color: T.sec, fontSize: 14, lineHeight: 1.8 }}>{r.text}</p>
+            </div>
+          ))}
+          {reviews.length === 0 && <p style={{ color: T.ter, fontFamily: "'DM Mono',monospace", fontSize: 12 }}>Még nincs értékelés.</p>}
+        </div>
+      )}
+
+      {/* Kívánlista tab */}
+      {tab === "wishlist" && (
+        <div>
+          {/* Fejléc szöveg */}
+          <div style={{ background: `linear-gradient(135deg,#1a1208,#100c07)`, border: `1px solid ${B.borHi}`, borderRadius: 14, padding: "22px 26px", marginBottom: 28 }}>
+            <p style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, color: T.h, marginBottom: 8 }}>🌟 Kívánlista</p>
+            <p style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: T.sec, lineHeight: 1.8 }}>
+              Ha valaki feltölti valamelyik keresett parfümodet, automatikus értesítést kapsz e-mailben.
+            </p>
+          </div>
+
+          {/* Hozzáadás – csak saját profil */}
+          {isOwn && (
+            <div style={{ display: "flex", gap: 10, marginBottom: 28 }}>
+              <input
+                ref={wishRef}
+                placeholder="pl. Creed Aventus  vagy  Dior Sauvage"
+                defaultValue=""
+                autoComplete="off" autoCorrect="off" spellCheck="false"
+                style={{ flex: 1, background: B.card, border: `1px solid ${B.bor}`, color: T.h, padding: "13px 16px", borderRadius: 9, fontFamily: "'DM Mono',monospace", fontSize: 16, outline: "none" }}
+              />
+              <button onClick={addWish} style={{ background: `linear-gradient(135deg,${ACC.gold},#8a5f1a)`, border: "none", color: T.inv, padding: "13px 22px", borderRadius: 9, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>+ Hozzáad</button>
+            </div>
+          )}
+
+          {/* Lista */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {wishlist.map(w => (
+              <div key={w.id} style={{ background: B.card, border: `1px solid ${B.bor}`, borderRadius: 12, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <span style={{ fontSize: 22 }}>🌟</span>
+                  <div>
+                    <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 17, color: T.h }}>{w.raw}</div>
+                    <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 10, color: T.ter, marginTop: 3, letterSpacing: 1 }}>ÉRTESÍTÉST KÉREK HA MEGJELENIK</div>
+                  </div>
+                </div>
+                {isOwn && (
+                  <button onClick={() => removeWish(w.id)} style={{ background: "transparent", border: `1px solid ${ACC.red}30`, color: ACC.red, padding: "6px 12px", borderRadius: 7, cursor: "pointer", fontFamily: "'DM Mono',monospace", fontSize: 10, flexShrink: 0 }}>Töröl</button>
+                )}
+              </div>
+            ))}
+            {wishlist.length === 0 && (
+              <p style={{ color: T.ter, fontFamily: "'DM Mono',monospace", fontSize: 12, textAlign: "center", padding: "40px 0" }}>
+                {isOwn ? "Még nincs kívánságod. Adj hozzá parfümöket fentebb!" : "Ennek a felhasználónak nincs nyilvános kívánlistája."}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Értékelés modal */}
+      {showRM && (
+        <Modal onClose={() => setShowRM(false)}>
+          <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, color: T.h, fontWeight: 400, marginBottom: 24 }}>Értékelés írása</h2>
+          <div style={{ marginBottom: 22 }}><Stars v={myRating} size={30} interactive onChange={setMyRating} /></div>
+          <textarea value={myText} onChange={e => setMyText(e.target.value)} rows={4} placeholder="Írd le tapasztalatod..."
+            style={{ background: B.card, border: `1px solid ${B.bor}`, color: T.h, padding: "13px 15px", borderRadius: 9, width: "100%", fontFamily: "'DM Mono',monospace", fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box", marginBottom: 18 }} />
+          <button onClick={submitReview} style={{ background: `linear-gradient(135deg,${ACC.gold},#8a5f1a)`, border: "none", color: T.inv, padding: "14px", width: "100%", borderRadius: 9, cursor: "pointer", fontFamily: "'Playfair Display',serif", fontSize: 17, fontWeight: 700 }}>Értékelés küldése →</button>
         </Modal>
       )}
     </div>
@@ -966,6 +1319,34 @@ function Sell({ curProfile, go, setListings, showToast }) {
     }
     setLoading(false);
     setListings(p => [data, ...p]);
+
+    // Wishlist match – megkeresi az egyező kívánságokat és értesíti a felhasználókat
+    try {
+      const { data: matches } = await supabase
+        .from("wishlists")
+        .select("*, profiles(email, name)")
+        .neq("user_id", curProfile.id) // ne saját magát értesítse
+        .or(`raw.ilike.%${brand}%,raw.ilike.%${name}%`);
+
+      if (matches && matches.length > 0) {
+        for (const match of matches) {
+          const profile = match.profiles;
+          if (!profile?.email) continue;
+          await supabase.functions.invoke("clever-worker", {
+            body: {
+              to_email:     profile.email,
+              from_name:    "Scentrade",
+              message_text: `🌟 Megjelent az álomillatod!\n\n${curProfile.name} épp most hirdette meg: ${brand} ${name}\n\nNézd meg mielőtt más megelőz!`,
+              subject_override: `🌟 Megjelent a kívánságlistádról: ${brand} ${name}`,
+              cta_url:      `https://scentrade.vercel.app`,
+              cta_text:     "Megnézem most →",
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("Wishlist értesítés sikertelen:", e);
+    }
     showToast("Hirdetés sikeresen közzétéve!", "success");
     setTimeout(() => go("market"), 900);
   }
