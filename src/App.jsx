@@ -1,118 +1,97 @@
+// SCENTRADE – Light Luxury Redesign
+// Paletta: tört fehér + fekete + sötétszürke + arany accent
+// Font: Playfair Display (display) + Manrope (body/mono)
+
 import { useState, useEffect, useRef } from "react";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const supabase = createClient(
-  "https://godjaksujnzekgpbpywk.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvZGpha3N1am56ZWtncGJweXdrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MDA3MDYsImV4cCI6MjA5NDA3NjcwNn0.b5KmrSZ5sjePZCls-dEZ00yJI8gbMs0MNPI2RxetPC8"
-);
-
-const ADMIN_EMAIL = "rapi.krisztian@gmail.com";
-
-// ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
-const T = { heading:"#0f0e0d", body:"#2c2825", muted:"#6b6560", faint:"#9e9890", inverse:"#faf8f4" };
-const B = { canvas:"#faf8f4", paper:"#f5f2ec", warm:"#ede9e0", border:"#e3ddd4", borderDk:"#c9c1b4" };
+// ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
+const T = {
+  heading: "#0f0e0d",
+  body:    "#2c2825",
+  muted:   "#6b6560",
+  faint:   "#9e9890",
+  inverse: "#faf8f4",
+};
+const B = {
+  canvas:  "#faf8f4",   // tört fehér
+  paper:   "#f5f2ec",   // kártyák
+  warm:    "#ede9e0",   // hover állapot
+  border:  "#e3ddd4",
+  borderDk:"#c9c1b4",
+};
 const ACC = {
-  gold:"#b8943f", goldPale:"#b8943f18", goldMid:"#b8943f35", goldWarm:"#d4a84b",
-  ink:"#1a1714", red:"#c0453a", redPale:"#c0453a12",
-  green:"#3a7a52", greenPale:"#3a7a5212",
-  admin:"#7c3aed", adminPale:"#7c3aed12", adminMid:"#7c3aed35",
+  gold:    "#b8943f",
+  goldPale:"#b8943f18",
+  goldMid: "#b8943f35",
+  goldWarm:"#d4a84b",
+  ink:     "#1a1714",
+  red:     "#c0453a",
+  redPale: "#c0453a12",
+  green:   "#3a7a52",
+  greenPale:"#3a7a5212",
 };
 
-// ─── RANK ────────────────────────────────────────────────────────────────────
+// ─── RANK ─────────────────────────────────────────────────────────────────────
 function getRank(sales = 0) {
-  if (sales >= 50) return { label:"Illatmester", icon:"◆", color:ACC.gold };
-  if (sales >= 5)  return { label:"Parfümista",  icon:"◇", color:T.muted };
-  return                  { label:"Újonc",       icon:"○", color:T.faint };
+  if (sales >= 50) return { label: "Illatmester", icon: "◆", color: ACC.gold    };
+  if (sales >= 5)  return { label: "Parfümista",  icon: "◇", color: T.muted     };
+  return                  { label: "Újonc",       icon: "○", color: T.faint     };
 }
 
-function RankBadge({ sales = 0, size = "sm", isAdmin = false }) {
-  if (isAdmin) return (
-    <span style={{
-      display:"inline-flex", alignItems:"center", gap:4,
-      border:`1px solid ${ACC.adminMid}`, borderRadius:3,
-      padding: size==="lg" ? "4px 10px" : "2px 7px",
-      fontFamily:"'Manrope',sans-serif", fontSize: size==="lg" ? 10 : 9,
-      color:ACC.admin, fontWeight:700, letterSpacing:1.5,
-      textTransform:"uppercase", whiteSpace:"nowrap", background:ACC.adminPale,
-    }}>⚡ Admin</span>
-  );
+function RankBadge({ sales = 0, size = "sm" }) {
   const r = getRank(sales);
+  const lg = size === "lg";
   return (
     <span style={{
-      display:"inline-flex", alignItems:"center", gap: size==="lg"?5:4,
-      border:`1px solid ${r.color}55`, borderRadius:3,
-      padding: size==="lg"?"4px 10px":"2px 7px",
-      fontFamily:"'Manrope',sans-serif", fontSize: size==="lg"?10:9,
-      color:r.color, fontWeight:700, letterSpacing:1.5,
-      textTransform:"uppercase", whiteSpace:"nowrap", background:r.color+"08",
-    }}><span style={{fontSize: size==="lg"?9:8}}>{r.icon}</span>{r.label}</span>
+      display: "inline-flex", alignItems: "center", gap: lg ? 5 : 4,
+      border: `1px solid ${r.color}55`,
+      borderRadius: 3, padding: lg ? "4px 10px" : "2px 7px",
+      fontFamily: "'Manrope',sans-serif", fontSize: lg ? 10 : 9,
+      color: r.color, fontWeight: 700, letterSpacing: 1.5,
+      textTransform: "uppercase", whiteSpace: "nowrap",
+      background: r.color + "08",
+    }}>
+      <span style={{ fontSize: lg ? 9 : 8 }}>{r.icon}</span>
+      {r.label}
+    </span>
   );
 }
 
 function RankProgress({ sales = 0 }) {
   const r = getRank(sales);
   let next = null, pct = 100;
-  if (sales < 5)               { next = { label:"Parfümista",  at:5  }; pct = Math.round((sales/5)*100); }
-  if (sales >= 5 && sales < 50) { next = { label:"Illatmester", at:50 }; pct = Math.round(((sales-5)/45)*100); }
+  if (sales < 5)               { next = { label: "Parfümista",  at: 5  }; pct = Math.round((sales / 5) * 100); }
+  if (sales >= 5 && sales < 50) { next = { label: "Illatmester", at: 50 }; pct = Math.round(((sales - 5) / 45) * 100); }
   return (
-    <div style={{ border:`1px solid ${B.border}`, borderRadius:8, padding:"20px 24px", background:B.paper }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-        <RankBadge sales={sales} size="lg"/>
-        <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, color:T.muted }}>{sales} eladás</span>
+    <div style={{ border: `1px solid ${B.border}`, borderRadius: 8, padding: "20px 24px", background: B.paper }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <RankBadge sales={sales} size="lg" />
+        <span style={{ fontFamily: "'Manrope',sans-serif", fontSize: 12, color: T.muted }}>{sales} eladás</span>
       </div>
-      {next && (<>
-        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-          <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:1 }}>KÖVETKEZŐ: {next.label.toUpperCase()}</span>
-          <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:ACC.gold }}>{next.at - sales} eladás hiányzik</span>
-        </div>
-        <div style={{ height:2, background:B.border, borderRadius:2 }}>
-          <div style={{ height:"100%", width:`${pct}%`, borderRadius:2, background:`linear-gradient(90deg,${r.color}60,${r.color})`, transition:"width .6s ease" }}/>
-        </div>
-      </>)}
-      {!next && <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:ACC.gold, letterSpacing:1 }}>◆ LEGMAGASABB RANG ELÉRVE</p>}
+      {next && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontFamily: "'Manrope',sans-serif", fontSize: 10, color: T.faint, letterSpacing: 1 }}>KÖVETKEZŐ: {next.label.toUpperCase()}</span>
+            <span style={{ fontFamily: "'Manrope',sans-serif", fontSize: 10, color: ACC.gold }}>{next.at - sales} eladás hiányzik</span>
+          </div>
+          <div style={{ height: 2, background: B.border, borderRadius: 2 }}>
+            <div style={{ height: "100%", width: `${pct}%`, borderRadius: 2, background: `linear-gradient(90deg,${ACC.gold}60,${ACC.gold})`, transition: "width .6s ease" }} />
+          </div>
+        </>
+      )}
+      {!next && <p style={{ fontFamily: "'Manrope',sans-serif", fontSize: 10, color: ACC.gold, letterSpacing: 1 }}>◆ LEGMAGASABB RANG ELÉRVE</p>}
     </div>
   );
 }
 
-// ─── AUTH HOOK ───────────────────────────────────────────────────────────────
-function useAuth() {
-  const [user, setUser]       = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setLoading(false);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else { setProfile(null); setLoading(false); }
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  async function fetchProfile(uid) {
-    const { data } = await supabase.from("profiles").select("*").eq("id", uid).single();
-    setProfile(data);
-    setLoading(false);
-  }
-  return { user, profile, loading, refetchProfile: () => user && fetchProfile(user.id) };
-}
-
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
-function isAdmin(profile) {
-  return profile?.email === ADMIN_EMAIL;
-}
-
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 function Stars({ v = 5, size = 13, interactive = false, onChange }) {
   const [hov, setHov] = useState(0);
   return (
-    <span style={{ fontSize:size, letterSpacing:3, cursor:interactive?"pointer":"default" }}>
+    <span style={{ fontSize: size, letterSpacing: 3, cursor: interactive ? "pointer" : "default" }}>
       {[1,2,3,4,5].map(i => (
-        <span key={i} style={{ color: i<=(hov||Math.round(v))?ACC.gold:B.borderDk }}
+        <span key={i}
+          style={{ color: i <= (hov || Math.round(v)) ? ACC.gold : B.borderDk }}
           onMouseEnter={() => interactive && setHov(i)}
           onMouseLeave={() => interactive && setHov(0)}
           onClick={() => interactive && onChange?.(i)}>★</span>
@@ -122,23 +101,25 @@ function Stars({ v = 5, size = 13, interactive = false, onChange }) {
 }
 
 function Ava({ u, size = 38 }) {
-  const initials = u?.name ? u.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase() : "?";
+  const initials = u?.name ? u.name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase() : "?";
   const rank = getRank(u?.sales || 0);
-  const admin = isAdmin(u);
   return (
-    <div style={{ position:"relative", flexShrink:0 }}>
+    <div style={{ position: "relative", flexShrink: 0 }}>
       <div style={{
-        width:size, height:size, borderRadius:"50%",
-        background:`linear-gradient(135deg,${B.warm},${B.border})`,
-        display:"flex", alignItems:"center", justifyContent:"center",
-        fontFamily:"'Playfair Display',serif", fontWeight:700,
-        fontSize:size*.34, color:T.muted,
-        border:`1.5px solid ${admin ? ACC.adminMid : rank.color+"40"}`,
+        width: size, height: size, borderRadius: "50%",
+        background: `linear-gradient(135deg,${B.warm},${B.border})`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "'Playfair Display',serif", fontWeight: 700,
+        fontSize: size * .34, color: T.muted,
+        border: `1.5px solid ${rank.color}40`,
       }}>{initials}</div>
       {size >= 36 && (
-        <span style={{ position:"absolute", bottom:-2, right:-2, fontSize:size*0.28, lineHeight:1, background:B.canvas, borderRadius:"50%", padding:"1px", color: admin ? ACC.admin : rank.color }}>
-          {admin ? "⚡" : rank.icon}
-        </span>
+        <span style={{
+          position: "absolute", bottom: -2, right: -2,
+          fontSize: size * 0.28, lineHeight: 1,
+          background: B.canvas, borderRadius: "50%",
+          padding: "1px", color: rank.color,
+        }}>{rank.icon}</span>
       )}
     </div>
   );
@@ -146,119 +127,162 @@ function Ava({ u, size = 38 }) {
 
 function Pill({ text, bg = ACC.goldPale, col = ACC.gold }) {
   return (
-    <span style={{ background:bg, color:col, fontSize:9, fontWeight:700, padding:"3px 9px", borderRadius:3, letterSpacing:1.2, textTransform:"uppercase", fontFamily:"'Manrope',sans-serif", whiteSpace:"nowrap", border:`1px solid ${col}25` }}>{text}</span>
+    <span style={{
+      background: bg, color: col, fontSize: 9, fontWeight: 700,
+      padding: "3px 9px", borderRadius: 3, letterSpacing: 1.2,
+      textTransform: "uppercase", fontFamily: "'Manrope',sans-serif",
+      whiteSpace: "nowrap", border: `1px solid ${col}25`,
+    }}>{text}</span>
   );
 }
 
 function Modal({ onClose, children }) {
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(15,14,13,.55)", backdropFilter:"blur(12px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:B.canvas, border:`1px solid ${B.border}`, borderRadius:12, padding:"44px 40px", width:"100%", maxWidth:520, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,.18)" }}>{children}</div>
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 200,
+      background: "rgba(15,14,13,.55)", backdropFilter: "blur(12px)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: B.canvas, border: `1px solid ${B.border}`,
+        borderRadius: 12, padding: "44px 40px",
+        width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto",
+        boxShadow: "0 24px 80px rgba(0,0,0,.18)",
+      }}>{children}</div>
     </div>
   );
 }
 
 function relTime(dateStr) {
   const d = Date.now() - new Date(dateStr).getTime();
-  const m=Math.floor(d/60000), h=Math.floor(d/3600000), day=Math.floor(d/86400000);
-  if (m<1) return "most"; if (m<60) return `${m}p`; if (h<24) return `${h}ó`;
-  if (day<7) return `${day}n`;
-  return new Date(dateStr).toLocaleDateString("hu-HU",{month:"short",day:"numeric"});
+  const m = Math.floor(d/60000), h = Math.floor(d/3600000), day = Math.floor(d/86400000);
+  if (m < 1) return "most"; if (m < 60) return `${m}p`; if (h < 24) return `${h}ó`;
+  if (day < 7) return `${day}n`;
+  return new Date(dateStr).toLocaleDateString("hu-HU", { month: "short", day: "numeric" });
 }
 
-// ─── TOAST ───────────────────────────────────────────────────────────────────
-function Toast({ message, type="error", onClose }) {
-  useEffect(() => { const t=setTimeout(onClose,4500); return ()=>clearTimeout(t); }, [onClose]);
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function Toast({ message, type = "error", onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 4500); return () => clearTimeout(t); }, [onClose]);
   const cfg = {
-    error:   { bg:"#fff5f5", border:`${ACC.red}30`,   text:ACC.red   },
-    success: { bg:"#f2faf6", border:`${ACC.green}30`, text:ACC.green },
-    info:    { bg:"#faf8f0", border:`${ACC.gold}30`,  text:ACC.gold  },
+    error:   { bg: "#fff5f5", border: `${ACC.red}30`,   text: ACC.red    },
+    success: { bg: "#f2faf6", border: `${ACC.green}30`, text: ACC.green  },
+    info:    { bg: "#faf8f0", border: `${ACC.gold}30`,  text: ACC.gold   },
   };
-  const c = cfg[type]||cfg.error;
+  const c = cfg[type] || cfg.error;
   return (
-    <div style={{ background:c.bg, border:`1px solid ${c.border}`, borderRadius:8, padding:"14px 18px", maxWidth:360, boxShadow:"0 4px 24px rgba(0,0,0,.1)", display:"flex", alignItems:"flex-start", gap:10 }}>
-      <span style={{ color:c.text, fontSize:14, flexShrink:0 }}>{type==="success"?"✓":type==="info"?"◆":"✕"}</span>
-      <p style={{ color:c.text, fontFamily:"'Manrope',sans-serif", fontSize:13, lineHeight:1.6, flex:1 }}>{message}</p>
-      <button onClick={onClose} style={{ background:"none", border:"none", color:c.text, cursor:"pointer", fontSize:16, opacity:.4, padding:0 }}>×</button>
+    <div style={{
+      background: c.bg, border: `1px solid ${c.border}`,
+      borderRadius: 8, padding: "14px 18px", maxWidth: 360,
+      boxShadow: "0 4px 24px rgba(0,0,0,.1)",
+      display: "flex", alignItems: "flex-start", gap: 10,
+    }}>
+      <span style={{ color: c.text, fontSize: 14, flexShrink: 0 }}>
+        {type === "success" ? "✓" : type === "info" ? "◆" : "✕"}
+      </span>
+      <p style={{ color: c.text, fontFamily: "'Manrope',sans-serif", fontSize: 13, lineHeight: 1.6, flex: 1 }}>{message}</p>
+      <button onClick={onClose} style={{ background: "none", border: "none", color: c.text, cursor: "pointer", fontSize: 16, opacity: .4, padding: 0 }}>×</button>
     </div>
   );
 }
 function useToast() {
   const [toasts, setToasts] = useState([]);
-  const show = (message, type="error") => { const id=Date.now(); setToasts(p=>[...p,{id,message,type}]); };
-  const remove = id => setToasts(p=>p.filter(t=>t.id!==id));
+  const show = (message, type = "error") => { const id = Date.now(); setToasts(p => [...p, { id, message, type }]); };
+  const remove = id => setToasts(p => p.filter(t => t.id !== id));
   const ToastContainer = () => (
-    <div style={{ position:"fixed", bottom:28, right:28, zIndex:9999, display:"flex", flexDirection:"column", gap:8 }}>
-      {toasts.map(t=><Toast key={t.id} message={t.message} type={t.type} onClose={()=>remove(t.id)}/>)}
+    <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 9999, display: "flex", flexDirection: "column", gap: 8 }}>
+      {toasts.map(t => <Toast key={t.id} message={t.message} type={t.type} onClose={() => remove(t.id)} />)}
     </div>
   );
   return { show, ToastContainer };
 }
 
-// ─── BOTTLE ──────────────────────────────────────────────────────────────────
+// ─── BOTTLE COMPONENTS ────────────────────────────────────────────────────────
 function bottleLiq(pct) {
-  if (pct>=80) return { top:"#d4a84b", mid:"#b8943f", bot:"#8a6e28" };
-  if (pct>=50) return { top:"#c9924a", mid:"#a87030", bot:"#7a4e18" };
-  if (pct>=20) return { top:"#c0854a", mid:"#9a6228", bot:"#6e4010" };
+  if (pct >= 80) return { top:"#d4a84b", mid:"#b8943f", bot:"#8a6e28" };
+  if (pct >= 50) return { top:"#c9924a", mid:"#a87030", bot:"#7a4e18" };
+  if (pct >= 20) return { top:"#c0854a", mid:"#9a6228", bot:"#6e4010" };
   return              { top:"#b07040", mid:"#8a5020", bot:"#5c300a" };
 }
 function fillLbl(pct) {
   if (pct===100) return "Bontatlan"; if (pct>=90) return "Szinte tele";
-  if (pct>=75)   return "Háromnegyedes"; if (pct>=50) return "Feles";
-  if (pct>=25)   return "Negyed körüli"; if (pct>=10) return "Kevés maradt";
+  if (pct>=75) return "Háromnegyedes"; if (pct>=50) return "Feles";
+  if (pct>=25) return "Negyed körüli"; if (pct>=10) return "Kevés maradt";
   return "Majdnem üres";
 }
 
-function BottleSlider({ value=90, onChange }) {
-  const pct=Math.min(100,Math.max(1,value));
-  const liq=bottleLiq(pct), liqH=(pct/100)*108, liqY=40+(108-liqH);
+function BottleSlider({ value = 90, onChange }) {
+  const pct = Math.min(100, Math.max(1, value));
+  const liq = bottleLiq(pct);
+  const liqH = (pct/100)*108, liqY = 40+(108-liqH);
   return (
-    <div style={{ border:`1px solid ${B.border}`, borderRadius:10, padding:"24px 28px", display:"flex", gap:32, alignItems:"center", background:B.paper }}>
-      <svg width="80" height="160" viewBox="0 0 80 160" fill="none" style={{ flexShrink:0, filter:"drop-shadow(0 8px 20px rgba(0,0,0,.08))" }}>
-        <defs>
-          <linearGradient id="sl-l" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={liq.top} stopOpacity=".9"/><stop offset="60%" stopColor={liq.mid} stopOpacity=".85"/><stop offset="100%" stopColor={liq.bot} stopOpacity=".9"/></linearGradient>
-          <linearGradient id="sl-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#fff" stopOpacity=".12"/><stop offset="30%" stopColor="#fff" stopOpacity=".22"/><stop offset="100%" stopColor="#fff" stopOpacity=".04"/></linearGradient>
-          <clipPath id="sl-c"><path d="M18 40 Q14 44 12 52 L10 148 Q10 152 14 152 L66 152 Q70 152 70 148 L68 52 Q66 44 62 40 Z"/></clipPath>
-        </defs>
-        <rect x="28" y="6" width="24" height="14" rx="3" fill={B.warm} stroke={B.borderDk} strokeWidth="1"/>
-        <rect x="31" y="4" width="18" height="4" rx="2" fill={ACC.gold} opacity=".6"/>
-        <path d="M30 20 L26 40 L54 40 L50 20 Z" fill={B.paper} stroke={B.border} strokeWidth="1"/>
-        <path d="M18 40 Q14 44 12 52 L10 148 Q10 152 14 152 L66 152 Q70 152 70 148 L68 52 Q66 44 62 40 Z" fill={B.canvas} stroke={B.borderDk} strokeWidth="1.5"/>
-        <g clipPath="url(#sl-c)">
-          <rect x="10" y={liqY} width="60" height={liqH+10} fill="url(#sl-l)" style={{transition:"y .5s cubic-bezier(.34,1.56,.64,1)"}}/>
-          {pct>3&&pct<98&&<ellipse cx="40" cy={liqY} rx="28" ry="3" fill={liq.top} opacity=".35" style={{transition:"cy .5s cubic-bezier(.34,1.56,.64,1)"}}/>}
-        </g>
-        <path d="M18 40 Q14 44 12 52 L10 148 Q10 152 14 152 L66 152 Q70 152 70 148 L68 52 Q66 44 62 40 Z" fill="url(#sl-g)"/>
-        <path d="M16 55 L14 140" stroke="#fff" strokeWidth="2" strokeOpacity=".3" strokeLinecap="round"/>
-        <text x="40" y="108" textAnchor="middle" fontFamily="'Manrope',sans-serif" fontSize="12" fontWeight="700" fill={pct>50?"rgba(255,255,255,.85)":T.muted} style={{userSelect:"none"}}>{pct}%</text>
-      </svg>
-      <div style={{ flex:1 }}>
-        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:22, color:T.heading, marginBottom:3 }}>{fillLbl(pct)}</div>
-        <div style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2, marginBottom:24, textTransform:"uppercase" }}>Töltöttségi szint</div>
-        <input type="range" min={1} max={100} value={pct} onChange={e=>onChange(Number(e.target.value))}
-          style={{ width:"100%", height:2, appearance:"none", WebkitAppearance:"none", background:`linear-gradient(90deg,${ACC.gold} ${pct}%,${B.border} ${pct}%)`, borderRadius:2, outline:"none", cursor:"pointer" }}/>
-        <div style={{ display:"flex", justifyContent:"space-between", marginTop:6, fontFamily:"'Manrope',sans-serif", fontSize:9, color:T.faint }}>
+    <div style={{ border: `1px solid ${B.border}`, borderRadius: 10, padding: "24px 28px", display: "flex", gap: 32, alignItems: "center", background: B.paper }}>
+      <div style={{ flexShrink: 0, filter: "drop-shadow(0 8px 20px rgba(0,0,0,.08))" }}>
+        <svg width="80" height="160" viewBox="0 0 80 160" fill="none">
+          <defs>
+            <linearGradient id="sl-l" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={liq.top} stopOpacity=".9"/>
+              <stop offset="60%" stopColor={liq.mid} stopOpacity=".85"/>
+              <stop offset="100%" stopColor={liq.bot} stopOpacity=".9"/>
+            </linearGradient>
+            <linearGradient id="sl-g" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#fff" stopOpacity=".12"/>
+              <stop offset="30%" stopColor="#fff" stopOpacity=".22"/>
+              <stop offset="100%" stopColor="#fff" stopOpacity=".04"/>
+            </linearGradient>
+            <clipPath id="sl-c"><path d="M18 40 Q14 44 12 52 L10 148 Q10 152 14 152 L66 152 Q70 152 70 148 L68 52 Q66 44 62 40 Z"/></clipPath>
+          </defs>
+          <rect x="28" y="6" width="24" height="14" rx="3" fill={B.warm} stroke={B.borderDk} strokeWidth="1"/>
+          <rect x="31" y="4" width="18" height="4" rx="2" fill={ACC.gold} opacity=".6"/>
+          <path d="M30 20 L26 40 L54 40 L50 20 Z" fill={B.paper} stroke={B.border} strokeWidth="1"/>
+          <path d="M18 40 Q14 44 12 52 L10 148 Q10 152 14 152 L66 152 Q70 152 70 148 L68 52 Q66 44 62 40 Z" fill={B.canvas} stroke={B.borderDk} strokeWidth="1.5"/>
+          <g clipPath="url(#sl-c)">
+            <rect x="10" y={liqY} width="60" height={liqH+10} fill="url(#sl-l)" style={{transition:"y .5s cubic-bezier(.34,1.56,.64,1),height .5s cubic-bezier(.34,1.56,.64,1)"}}/>
+            {pct>3&&pct<98&&<ellipse cx="40" cy={liqY} rx="28" ry="3" fill={liq.top} opacity=".35" style={{transition:"cy .5s cubic-bezier(.34,1.56,.64,1)"}}/>}
+          </g>
+          <path d="M18 40 Q14 44 12 52 L10 148 Q10 152 14 152 L66 152 Q70 152 70 148 L68 52 Q66 44 62 40 Z" fill="url(#sl-g)"/>
+          <path d="M16 55 L14 140" stroke="#fff" strokeWidth="2" strokeOpacity=".3" strokeLinecap="round"/>
+          <text x="40" y="108" textAnchor="middle" fontFamily="'Manrope',sans-serif" fontSize="12" fontWeight="700" fill={pct>50?"rgba(255,255,255,.85)":T.muted} style={{userSelect:"none"}}>{pct}%</text>
+        </svg>
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, color: T.heading, marginBottom: 3 }}>{fillLbl(pct)}</div>
+        <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 10, color: T.faint, letterSpacing: 2, marginBottom: 24, textTransform: "uppercase" }}>Töltöttségi szint</div>
+        <input type="range" min={1} max={100} value={pct} onChange={e => onChange(Number(e.target.value))}
+          style={{ width:"100%",height:2,appearance:"none",WebkitAppearance:"none",background:`linear-gradient(90deg,${ACC.gold} ${pct}%,${B.border} ${pct}%)`,borderRadius:2,outline:"none",cursor:"pointer"}}/>
+        <div style={{ display:"flex",justifyContent:"space-between",marginTop:6,fontFamily:"'Manrope',sans-serif",fontSize:9,color:T.faint }}>
           {["0%","25%","50%","75%","100%"].map(l=><span key={l}>{l}</span>)}
         </div>
-        <div style={{ display:"flex", gap:6, marginTop:16, flexWrap:"wrap" }}>
+        <div style={{ display:"flex",gap:6,marginTop:16,flexWrap:"wrap" }}>
           {[{label:"Bontatlan",v:100},{label:"~¾",v:75},{label:"~½",v:50},{label:"~¼",v:25}].map(({label,v})=>(
-            <button key={v} onClick={()=>onChange(v)} style={{ background:pct===v?ACC.goldPale:"transparent", border:`1px solid ${pct===v?ACC.gold:B.border}`, color:pct===v?ACC.gold:T.muted, padding:"5px 12px", borderRadius:4, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:10, transition:"all .15s" }}>{label}</button>
+            <button key={v} onClick={()=>onChange(v)} style={{
+              background: pct===v?ACC.goldPale:"transparent",
+              border:`1px solid ${pct===v?ACC.gold:B.border}`,
+              color: pct===v?ACC.gold:T.muted,
+              padding:"5px 12px",borderRadius:4,cursor:"pointer",
+              fontFamily:"'Manrope',sans-serif",fontSize:10,letterSpacing:.5,
+              transition:"all .15s",
+            }}>{label}</button>
           ))}
         </div>
-        {pct<20&&<div style={{ marginTop:14, padding:"9px 14px", background:ACC.redPale, border:`1px solid ${ACC.red}25`, borderRadius:6, fontFamily:"'Manrope',sans-serif", fontSize:11, color:ACC.red }}>⚠ Alacsony szint – légy pontos a vevő miatt!</div>}
+        {pct<20&&<div style={{ marginTop:14,padding:"9px 14px",background:ACC.redPale,border:`1px solid ${ACC.red}25`,borderRadius:6,fontFamily:"'Manrope',sans-serif",fontSize:11,color:ACC.red }}>⚠ Alacsony szint – légy pontos a vevő miatt!</div>}
       </div>
     </div>
   );
 }
 
-function BottleCompact({ pct=90 }) {
-  const liq=bottleLiq(pct), liqH=(pct/100)*108, liqY=40+(108-liqH);
-  const col=pct>=80?ACC.gold:pct>=50?"#c0924a":pct>=25?"#b07040":ACC.red;
+function BottleCompact({ pct = 90 }) {
+  const liq = bottleLiq(pct);
+  const liqH = (pct/100)*108, liqY = 40+(108-liqH);
+  const col = pct>=80?ACC.gold:pct>=50?"#c0924a":pct>=25?"#b07040":ACC.red;
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+    <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
       <svg width="20" height="64" viewBox="0 0 80 160" fill="none">
         <defs>
-          <linearGradient id="cp-l" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={liq.top} stopOpacity=".88"/><stop offset="100%" stopColor={liq.bot} stopOpacity=".8"/></linearGradient>
+          <linearGradient id="cp-l" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={liq.top} stopOpacity=".88"/>
+            <stop offset="100%" stopColor={liq.bot} stopOpacity=".8"/>
+          </linearGradient>
           <clipPath id="cp-c"><path d="M18 40 Q14 44 12 52 L10 148 Q10 152 14 152 L66 152 Q70 152 70 148 L68 52 Q66 44 62 40 Z"/></clipPath>
         </defs>
         <rect x="28" y="6" width="24" height="14" rx="3" fill={B.warm} stroke={B.border} strokeWidth="1"/>
@@ -267,21 +291,25 @@ function BottleCompact({ pct=90 }) {
         <g clipPath="url(#cp-c)"><rect x="10" y={liqY} width="60" height={liqH+10} fill="url(#cp-l)"/></g>
       </svg>
       <div>
-        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:15, color:col, fontWeight:600 }}>{pct}%</div>
-        <div style={{ fontFamily:"'Manrope',sans-serif", fontSize:9, color:T.faint, letterSpacing:1.2 }}>TELE</div>
+        <div style={{ fontFamily:"'Playfair Display',serif",fontSize:15,color:col,fontWeight:600 }}>{pct}%</div>
+        <div style={{ fontFamily:"'Manrope',sans-serif",fontSize:9,color:T.faint,letterSpacing:1.2 }}>TELE</div>
       </div>
     </div>
   );
 }
 
-function BottleDetail({ pct=90 }) {
-  const liq=bottleLiq(pct), liqH=(pct/100)*108, liqY=40+(108-liqH);
-  const col=pct>=80?ACC.gold:pct>=50?"#c0924a":pct>=25?"#b07040":ACC.red;
+function BottleDetail({ pct = 90 }) {
+  const liq = bottleLiq(pct);
+  const liqH=(pct/100)*108, liqY=40+(108-liqH);
+  const col = pct>=80?ACC.gold:pct>=50?"#c0924a":pct>=25?"#b07040":ACC.red;
   return (
-    <div style={{ border:`1px solid ${B.border}`, borderRadius:10, padding:"18px 22px", display:"flex", alignItems:"center", gap:22, marginBottom:28, background:B.paper }}>
+    <div style={{ border:`1px solid ${B.border}`,borderRadius:10,padding:"18px 22px",display:"flex",alignItems:"center",gap:22,marginBottom:28,background:B.paper }}>
       <svg width="52" height="104" viewBox="0 0 80 160" fill="none" style={{ flexShrink:0 }}>
         <defs>
-          <linearGradient id="dt-l" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={liq.top} stopOpacity=".9"/><stop offset="100%" stopColor={liq.bot} stopOpacity=".8"/></linearGradient>
+          <linearGradient id="dt-l" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={liq.top} stopOpacity=".9"/>
+            <stop offset="100%" stopColor={liq.bot} stopOpacity=".8"/>
+          </linearGradient>
           <clipPath id="dt-c"><path d="M18 40 Q14 44 12 52 L10 148 Q10 152 14 152 L66 152 Q70 152 70 148 L68 52 Q66 44 62 40 Z"/></clipPath>
         </defs>
         <rect x="28" y="6" width="24" height="14" rx="3" fill={B.warm} stroke={B.borderDk} strokeWidth="1"/>
@@ -296,24 +324,24 @@ function BottleDetail({ pct=90 }) {
         <text x="40" y="108" textAnchor="middle" fontFamily="'Manrope',sans-serif" fontSize="12" fontWeight="700" fill={pct>50?"rgba(255,255,255,.8)":T.muted} style={{userSelect:"none"}}>{pct}%</text>
       </svg>
       <div>
-        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:28, color:col, fontWeight:600, marginBottom:4 }}>{pct}% tele</div>
-        <div style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2, marginBottom:12, textTransform:"uppercase" }}>Töltöttségi szint</div>
-        <div style={{ width:160, height:2, background:B.border, borderRadius:2 }}>
-          <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${col}60,${col})`, borderRadius:2, transition:"width .5s ease" }}/>
+        <div style={{ fontFamily:"'Playfair Display',serif",fontSize:28,color:col,fontWeight:600,marginBottom:4 }}>{pct}% tele</div>
+        <div style={{ fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:2,marginBottom:12,textTransform:"uppercase" }}>Töltöttségi szint</div>
+        <div style={{ width:160,height:2,background:B.border,borderRadius:2 }}>
+          <div style={{ height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${col}60,${col})`,borderRadius:2,transition:"width .5s ease" }}/>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── CONSTANTS ───────────────────────────────────────────────────────────────
-const COND       = { mint:"Bontatlan/Mint", excellent:"Kiváló", good:"Jó", fair:"Közepes" };
-const COND_COLOR = { mint:ACC.green, excellent:"#4a78b0", good:ACC.gold, fair:ACC.red };
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const COND       = { mint:"Bontatlan/Mint",excellent:"Kiváló",good:"Jó",fair:"Közepes" };
+const COND_COLOR = { mint:ACC.green,excellent:"#4a78b0",good:ACC.gold,fair:ACC.red };
 const CATS       = ["Összes","woody","oriental","floral","fresh","aromatic"];
 const DECANT_SZ  = [1,2,3,5,10,15,20];
 const ICONS      = ["✨","🏺","🫙","🌸","🌿","🍂","☀️","🌑","🥀","💀","🎷","🏔","🌊","🍋","🔥"];
 
-// ─── NAV ─────────────────────────────────────────────────────────────────────
+// ─── NAV ──────────────────────────────────────────────────────────────────────
 function Nav({ profile, page, go, openLogin, unreadCount }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -322,385 +350,192 @@ function Nav({ profile, page, go, openLogin, unreadCount }) {
     return () => window.removeEventListener("scroll", fn);
   }, []);
   const rank = getRank(profile?.sales || 0);
-  const admin = isAdmin(profile);
-
   return (
     <nav style={{
-      position:"fixed", top:0, left:0, right:0, zIndex:100, height:62,
-      background: scrolled?"rgba(250,248,244,.96)":B.canvas,
-      backdropFilter:"blur(16px)",
-      borderBottom:`1px solid ${scrolled?B.border:"transparent"}`,
-      display:"flex", alignItems:"center", justifyContent:"space-between",
-      padding:"0 40px", transition:"border-color .3s,background .3s",
+      position:"fixed",top:0,left:0,right:0,zIndex:100,height:62,
+      background: scrolled ? "rgba(250,248,244,.96)" : B.canvas,
+      backdropFilter: "blur(16px)",
+      borderBottom:`1px solid ${scrolled ? B.border : "transparent"}`,
+      display:"flex",alignItems:"center",justifyContent:"space-between",
+      padding:"0 40px",
+      transition:"border-color .3s, background .3s",
     }}>
-      <div onClick={()=>go("home")} style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:10 }}>
-        <span style={{ fontFamily:"'Playfair Display',serif", fontSize:22, fontWeight:700, color:T.heading, letterSpacing:3 }}>SCENTRADE</span>
-        <span style={{ width:1, height:16, background:B.borderDk, margin:"0 4px" }}/>
-        <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:3 }}>HU</span>
+      <div onClick={()=>go("home")} style={{ cursor:"pointer",display:"flex",alignItems:"center",gap:10 }}>
+        <span style={{ fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:T.heading,letterSpacing:3 }}>SCENTRADE</span>
+        <span style={{ width:1,height:16,background:B.borderDk,margin:"0 4px" }}/>
+        <span style={{ fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:3 }}>HU</span>
       </div>
-      <div style={{ display:"flex", gap:2, alignItems:"center" }}>
+      <div style={{ display:"flex",gap:2,alignItems:"center" }}>
         {[["home","Főoldal"],["market","Piac"]].map(([p,l])=>(
           <button key={p} onClick={()=>go(p)} style={{
-            background:"transparent", border:"none",
-            color: page===p?T.heading:T.muted,
-            padding:"8px 14px", borderRadius:6, cursor:"pointer",
-            fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:page===p?700:500,
-            borderBottom: page===p?`2px solid ${ACC.gold}`:"2px solid transparent",
+            background:"transparent",
+            border:"none",
+            color: page===p ? T.heading : T.muted,
+            padding:"8px 14px",borderRadius:6,cursor:"pointer",
+            fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight: page===p ? 700 : 500,
+            letterSpacing:.3,
+            borderBottom: page===p ? `2px solid ${ACC.gold}` : "2px solid transparent",
             transition:"all .15s",
           }}>{l}</button>
         ))}
-        {admin && (
-          <button onClick={()=>go("admin")} style={{
-            background: page==="admin"?ACC.adminPale:"transparent",
-            border:`1px solid ${page==="admin"?ACC.adminMid:"transparent"}`,
-            color: page==="admin"?ACC.admin:T.muted,
-            padding:"7px 13px", borderRadius:6, cursor:"pointer",
-            fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:600,
-            transition:"all .15s",
-          }}>⚡ Admin</button>
-        )}
         <button onClick={()=>go("sell")} style={{
-          background:ACC.ink, border:"none", color:B.canvas,
-          padding:"8px 18px", borderRadius:6, cursor:"pointer",
-          fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:700,
-          letterSpacing:.3, marginLeft:8,
+          background:ACC.ink,border:"none",color:B.canvas,
+          padding:"8px 18px",borderRadius:6,cursor:"pointer",
+          fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:700,
+          letterSpacing:.3,marginLeft:8,
+          transition:"opacity .15s",
         }}>+ Hirdetés</button>
         {profile ? (
           <>
-            <button onClick={()=>go("messages")} style={{ background:"transparent", border:"none", cursor:"pointer", color:T.muted, fontSize:18, position:"relative", padding:"4px 10px", marginLeft:4 }}>
+            <button onClick={()=>go("messages")} style={{ background:"transparent",border:"none",cursor:"pointer",color:T.muted,fontSize:18,position:"relative",padding:"4px 10px",marginLeft:4 }}>
               ✉
-              {unreadCount>0&&<span style={{ position:"absolute", top:1, right:3, background:ACC.gold, borderRadius:10, minWidth:15, height:15, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Manrope',sans-serif", fontSize:8, color:"#fff", fontWeight:700, padding:"0 4px" }}>{unreadCount>9?"9+":unreadCount}</span>}
+              {unreadCount>0&&<span style={{ position:"absolute",top:1,right:3,background:ACC.gold,borderRadius:10,minWidth:15,height:15,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Manrope',sans-serif",fontSize:8,color:"#fff",fontWeight:700,padding:"0 4px" }}>{unreadCount>9?"9+":unreadCount}</span>}
             </button>
-            <button onClick={()=>go("profile_own")} style={{ background:"transparent", border:`1px solid ${admin?ACC.adminMid:B.borderDk}`, borderRadius:24, padding:"4px 12px 4px 5px", cursor:"pointer", display:"flex", alignItems:"center", gap:8, marginLeft:4 }}>
+            <button onClick={()=>go("profile_own")} style={{ background:"transparent",border:`1px solid ${B.borderDk}`,borderRadius:24,padding:"4px 12px 4px 5px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,marginLeft:4 }}>
               <Ava u={profile} size={28}/>
-              <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:600, color:admin?ACC.admin:T.body }}>{profile.name?.split(" ")[0]}</span>
+              <span style={{ fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600,color:T.body }}>{profile.name?.split(" ")[0]}</span>
             </button>
           </>
         ) : (
-          <button onClick={openLogin} style={{ background:"transparent", border:`1px solid ${B.borderDk}`, color:T.body, padding:"8px 18px", borderRadius:6, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:600, marginLeft:8 }}>Belépés</button>
+          <button onClick={openLogin} style={{ background:"transparent",border:`1px solid ${B.borderDk}`,color:T.body,padding:"8px 18px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600,marginLeft:8 }}>Belépés</button>
         )}
       </div>
     </nav>
   );
 }
 
-// ─── CARD ────────────────────────────────────────────────────────────────────
-function Card({ l, u, onClick, adminMode=false, onAdminDelete, onAdminPin }) {
+// ─── CARD ─────────────────────────────────────────────────────────────────────
+function Card({ l, u, onClick }) {
   const [hov, setHov] = useState(false);
-  const isDecant=l.listing_type==="decant", isBuy=l.type==="buy", isSold=l.status==="sold", isPend=l.status==="pending", isPinned=l.pinned;
+  const isDecant=l.listing_type==="decant",isBuy=l.type==="buy",isSold=l.status==="sold",isPend=l.status==="pending";
   return (
     <div onClick={onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
       style={{
-        background:hov?B.warm:B.paper,
-        border:`1px solid ${isPinned?ACC.goldMid:hov?B.borderDk:B.border}`,
-        borderRadius:10, padding:"26px 22px 20px",
+        background: hov ? B.warm : B.paper,
+        border:`1px solid ${hov?B.borderDk:B.border}`,
+        borderRadius:10,padding:"26px 22px 20px",
         cursor:onClick?"pointer":"default",
         transition:"all .22s ease",
-        transform:hov?"translateY(-2px)":"none",
-        boxShadow:hov?"0 8px 32px rgba(0,0,0,.07)":isPinned?"0 0 0 2px "+ACC.goldMid:"0 1px 4px rgba(0,0,0,.03)",
-        opacity:isSold?.55:1, position:"relative", overflow:"hidden",
+        transform: hov?"translateY(-2px)":"none",
+        boxShadow: hov?"0 8px 32px rgba(0,0,0,.07)":"0 1px 4px rgba(0,0,0,.03)",
+        opacity:isSold?.55:1,position:"relative",overflow:"hidden",
       }}>
-      {isPinned&&<div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${ACC.gold},${ACC.goldWarm})` }}/>}
       {(isSold||isPend)&&(
-        <div style={{ position:"absolute", top:isPinned?3:0, left:0, right:0, padding:"4px 0", textAlign:"center", background:isSold?"#f2faf6":"#fefaf0", borderBottom:`1px solid ${isSold?ACC.green:ACC.gold}28`, fontFamily:"'Manrope',sans-serif", fontSize:9, letterSpacing:1.5, color:isSold?ACC.green:ACC.gold, fontWeight:700 }}>{isSold?"✓ ELADVA":"⏳ FÜGGŐBEN"}</div>
+        <div style={{
+          position:"absolute",top:0,left:0,right:0,padding:"4px 0",textAlign:"center",
+          background: isSold?"#f2faf6":"#fefaf0",
+          borderBottom:`1px solid ${isSold?ACC.green:ACC.gold}28`,
+          fontFamily:"'Manrope',sans-serif",fontSize:9,letterSpacing:1.5,
+          color:isSold?ACC.green:ACC.gold, fontWeight:700,
+        }}>{isSold?"✓ ELADVA":"⏳ FÜGGŐBEN"}</div>
       )}
-      <div style={{ display:"flex", gap:5, marginBottom:14, flexWrap:"wrap", marginTop:(isSold||isPend||isPinned)?24:0 }}>
-        {isPinned&&<Pill text="📌 Kiemelt" bg={ACC.goldPale} col={ACC.gold}/>}
+      <div style={{ display:"flex",gap:5,marginBottom:14,flexWrap:"wrap",marginTop:(isSold||isPend)?24:0 }}>
         <Pill text={isBuy?"Keresett":"Eladó"} bg={isBuy?"#eef4fb":"#faf8f0"} col={isBuy?"#4a78b0":ACC.gold}/>
         <Pill text={isDecant?"Dekant":"Teljes"} bg={isDecant?"#fff5ee":"#f2faf6"} col={isDecant?"#c0724a":ACC.green}/>
         {l.condition&&<Pill text={COND[l.condition]} bg={COND_COLOR[l.condition]+"12"} col={COND_COLOR[l.condition]}/>}
         {l.swap_ok&&<Pill text="Csere OK" bg="#f5f0fb" col="#7a5ab0"/>}
       </div>
-      <div style={{ fontSize:40, marginBottom:12 }}>{l.icon||"🫙"}</div>
-      <div style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2.5, marginBottom:3, fontWeight:600 }}>{(l.brand||"").toUpperCase()}</div>
-      <div style={{ fontFamily:"'Playfair Display',serif", fontSize:20, color:T.heading, lineHeight:1.2, marginBottom:6 }}>{l.name}</div>
-      <div style={{ fontSize:12, color:T.faint, marginBottom:14, fontFamily:"'Manrope',sans-serif" }}>{isDecant?`${l.decant_ml}ml dekant`:`${l.size||""}${l.fill?` · ${l.fill}% tele`:""}`}</div>
+      <div style={{ fontSize:40,marginBottom:12 }}>{l.icon||"🫙"}</div>
+      <div style={{ fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:2.5,marginBottom:3,fontWeight:600 }}>{(l.brand||"").toUpperCase()}</div>
+      <div style={{ fontFamily:"'Playfair Display',serif",fontSize:20,color:T.heading,lineHeight:1.2,marginBottom:6 }}>{l.name}</div>
+      <div style={{ fontSize:12,color:T.faint,marginBottom:14,fontFamily:"'Manrope',sans-serif" }}>{isDecant?`${l.decant_ml}ml dekant`:`${l.size||""}${l.fill?` · ${l.fill}% tele`:""}`}</div>
       {!isDecant&&l.fill&&<BottleCompact pct={l.fill}/>}
-      <div style={{ fontFamily:"'Playfair Display',serif", fontSize:22, color:T.heading, marginBottom:16, marginTop:"auto", fontWeight:600 }}>
+      <div style={{ fontFamily:"'Playfair Display',serif",fontSize:22,color:T.heading,marginBottom:16,marginTop:"auto",fontWeight:600 }}>
         {(l.price||0).toLocaleString("hu-HU")} Ft
-        {isDecant&&<span style={{ fontSize:12, color:T.faint, fontFamily:"'Manrope',sans-serif", marginLeft:6 }}>/ {l.decant_ml}ml</span>}
+        {isDecant&&<span style={{ fontSize:12,color:T.faint,fontFamily:"'Manrope',sans-serif",marginLeft:6 }}>/ {l.decant_ml}ml</span>}
       </div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", paddingTop:14, borderTop:`1px solid ${B.border}` }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:14,borderTop:`1px solid ${B.border}` }}>
+        <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
           <Ava u={u} size={24}/>
-          <span style={{ fontSize:12, color:T.muted, fontFamily:"'Manrope',sans-serif", fontWeight:500 }}>{u?.name?.split(" ")[0]||"?"}</span>
-          {u?.verified&&<span style={{ color:ACC.gold, fontSize:11 }}>✓</span>}
-          {isAdmin(u) ? <RankBadge isAdmin size="sm"/> : <RankBadge sales={u?.sales||0}/>}
+          <span style={{ fontSize:12,color:T.muted,fontFamily:"'Manrope',sans-serif",fontWeight:500 }}>{u?.name?.split(" ")[0]||"?"}</span>
+          {u?.verified&&<span style={{ color:ACC.gold,fontSize:11 }}>✓</span>}
+          <RankBadge sales={u?.sales||0}/>
         </div>
-        <span style={{ fontSize:10, color:T.faint, fontFamily:"'Manrope',sans-serif" }}>👁 {l.views||0}</span>
+        <span style={{ fontSize:10,color:T.faint,fontFamily:"'Manrope',sans-serif" }}>👁 {l.views||0}</span>
       </div>
-      {adminMode&&(
-        <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:6, marginTop:14, paddingTop:12, borderTop:`1px solid ${B.border}` }}>
-          <button onClick={()=>onAdminPin?.(l)} style={{ flex:1, background:isPinned?ACC.goldPale:"transparent", border:`1px solid ${isPinned?ACC.gold:B.borderDk}`, color:isPinned?ACC.gold:T.muted, padding:"6px", borderRadius:5, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:10, fontWeight:700 }}>{isPinned?"📌 Kitűzve":"📌 Kiemel"}</button>
-          <button onClick={()=>onAdminDelete?.(l)} style={{ flex:1, background:ACC.redPale, border:`1px solid ${ACC.red}30`, color:ACC.red, padding:"6px", borderRadius:5, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:10, fontWeight:700 }}>🗑 Törlés</button>
-        </div>
-      )}
     </div>
   );
 }
 
-// ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────────
-function AdminDashboard({ listings, profiles, go, setSelId, setListings, setProfiles, showToast }) {
-  const [tab, setTab]         = useState("overview");
-  const [allUsers, setAllUsers] = useState([]);
-  const [loading, setLoading]   = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null); // listing
-  const [confirmBan, setConfirmBan]       = useState(null); // user
-
-  useEffect(() => { loadUsers(); }, []);
-
-  async function loadUsers() {
-    setLoading(true);
-    const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending:false });
-    setAllUsers(data || []);
-    setLoading(false);
-  }
-
-  async function handleDelete(l) {
-    await supabase.from("listings").delete().eq("id", l.id);
-    setListings(p => p.filter(x => x.id !== l.id));
-    setConfirmDelete(null);
-    showToast("Hirdetés törölve.", "success");
-  }
-
-  async function handlePin(l) {
-    const newVal = !l.pinned;
-    await supabase.from("listings").update({ pinned: newVal }).eq("id", l.id);
-    setListings(p => p.map(x => x.id===l.id ? {...x, pinned:newVal} : x));
-    showToast(newVal ? "Hirdetés kiemelve." : "Kiemelés eltávolítva.", "success");
-  }
-
-  async function handleBan(u) {
-    const newBanned = !u.banned;
-    await supabase.from("profiles").update({ banned: newBanned }).eq("id", u.id);
-    setAllUsers(p => p.map(x => x.id===u.id ? {...x, banned:newBanned} : x));
-    setProfiles(p => ({ ...p, [u.id]: {...(p[u.id]||{}), banned:newBanned} }));
-    setConfirmBan(null);
-    showToast(newBanned ? `${u.name} tiltva.` : `${u.name} tiltás feloldva.`, "success");
-  }
-
-  const totalListings  = listings.length;
-  const activeListings = listings.filter(l=>l.status==="active").length;
-  const soldListings   = listings.filter(l=>l.status==="sold").length;
-  const totalUsers     = allUsers.length;
-  const bannedUsers    = allUsers.filter(u=>u.banned).length;
-  const totalRevenue   = listings.filter(l=>l.status==="sold").reduce((s,l)=>s+(l.price||0),0);
-
-  const StatBox = ({ label, value, sub, color=T.heading }) => (
-    <div style={{ background:B.paper, border:`1px solid ${B.border}`, borderRadius:10, padding:"22px 24px" }}>
-      <div style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2, fontWeight:700, textTransform:"uppercase", marginBottom:8 }}>{label}</div>
-      <div style={{ fontFamily:"'Playfair Display',serif", fontSize:36, color, fontWeight:600 }}>{value}</div>
-      {sub&&<div style={{ fontFamily:"'Manrope',sans-serif", fontSize:11, color:T.faint, marginTop:4 }}>{sub}</div>}
-    </div>
-  );
-
-  return (
-    <div style={{ paddingTop:62, maxWidth:1200, margin:"0 auto", padding:"80px 40px", background:B.canvas }}>
-      {/* Header */}
-      <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:8 }}>
-        <span style={{ background:ACC.adminPale, border:`1px solid ${ACC.adminMid}`, color:ACC.admin, padding:"4px 12px", borderRadius:4, fontFamily:"'Manrope',sans-serif", fontSize:11, fontWeight:700, letterSpacing:1.5 }}>⚡ ADMIN PANEL</span>
-      </div>
-      <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:44, color:T.heading, fontWeight:400, marginBottom:36 }}>Dashboard</h1>
-
-      {/* Tabs */}
-      <div style={{ display:"flex", borderBottom:`1px solid ${B.border}`, marginBottom:36 }}>
-        {[["overview","Áttekintés"],["listings","Hirdetések"],["users","Felhasználók"]].map(([k,l])=>(
-          <button key={k} onClick={()=>setTab(k)} style={{ background:"transparent", border:"none", borderBottom:tab===k?`2px solid ${ACC.admin}`:"2px solid transparent", color:tab===k?ACC.admin:T.faint, padding:"12px 20px", cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:tab===k?700:500, marginBottom:-1, transition:"all .15s" }}>{l}</button>
-        ))}
-      </div>
-
-      {/* Overview */}
-      {tab==="overview"&&(
-        <div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:16, marginBottom:40 }}>
-            <StatBox label="Összes hirdetés" value={totalListings}/>
-            <StatBox label="Aktív" value={activeListings} color={ACC.green}/>
-            <StatBox label="Eladott" value={soldListings} color={ACC.gold}/>
-            <StatBox label="Felhasználók" value={totalUsers}/>
-            <StatBox label="Tiltott" value={bannedUsers} color={bannedUsers>0?ACC.red:T.faint}/>
-            <StatBox label="Eladott forgalom" value={totalRevenue.toLocaleString("hu-HU")+" Ft"} color={ACC.gold}/>
-          </div>
-          {/* Kategória bontás */}
-          <div style={{ border:`1px solid ${B.border}`, borderRadius:10, padding:"24px 28px", background:B.paper }}>
-            <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2, fontWeight:700, marginBottom:20, textTransform:"uppercase" }}>Kategória bontás</p>
-            {["woody","oriental","floral","fresh","aromatic"].map(cat => {
-              const cnt = listings.filter(l=>l.category===cat).length;
-              const pct = totalListings ? Math.round((cnt/totalListings)*100) : 0;
-              return (
-                <div key={cat} style={{ marginBottom:14 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
-                    <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, color:T.body, fontWeight:500, textTransform:"capitalize" }}>{cat}</span>
-                    <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, color:T.muted }}>{cnt} db · {pct}%</span>
-                  </div>
-                  <div style={{ height:4, background:B.border, borderRadius:2 }}>
-                    <div style={{ height:"100%", width:`${pct}%`, background:ACC.gold, borderRadius:2, transition:"width .5s ease" }}/>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Listings */}
-      {tab==="listings"&&(
-        <div>
-          <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:11, color:T.faint, marginBottom:24, letterSpacing:1, fontWeight:600 }}>{listings.length} HIRDETÉS · Admin módban — törlés és kiemelés elérhető</p>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(272px,1fr))", gap:18 }}>
-            {listings.map(l=>(
-              <Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>{setSelId(l.id);go("detail");}}
-                adminMode
-                onAdminDelete={l=>setConfirmDelete(l)}
-                onAdminPin={handlePin}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Users */}
-      {tab==="users"&&(
-        <div>
-          {loading ? (
-            <p style={{ color:T.faint, fontFamily:"'Manrope',sans-serif", fontSize:13 }}>Betöltés...</p>
-          ) : (
-            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-              {allUsers.map(u=>(
-                <div key={u.id} style={{ display:"flex", alignItems:"center", gap:16, padding:"16px 20px", border:`1px solid ${u.banned?ACC.red+"30":B.border}`, borderRadius:10, background:u.banned?ACC.redPale:B.paper }}>
-                  <Ava u={u} size={44}/>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4, flexWrap:"wrap" }}>
-                      <span style={{ fontFamily:"'Playfair Display',serif", fontSize:18, color:T.heading }}>{u.name}</span>
-                      {isAdmin(u)&&<RankBadge isAdmin size="sm"/>}
-                      {!isAdmin(u)&&<RankBadge sales={u.sales||0}/>}
-                      {u.banned&&<Pill text="Tiltott" bg={ACC.redPale} col={ACC.red}/>}
-                      {u.verified&&<Pill text="Hitelesített" bg={ACC.goldPale} col={ACC.gold}/>}
-                    </div>
-                    <div style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, color:T.faint }}>
-                      {u.email} · {u.location||"–"} · {u.sales||0} eladás · ⭐ {u.rating||0}
-                    </div>
-                  </div>
-                  {!isAdmin(u)&&(
-                    <button onClick={()=>setConfirmBan(u)} style={{ background:u.banned?ACC.greenPale:ACC.redPale, border:`1px solid ${u.banned?ACC.green:ACC.red}30`, color:u.banned?ACC.green:ACC.red, padding:"8px 16px", borderRadius:6, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>
-                      {u.banned?"✓ Tiltás feloldása":"⛔ Tiltás"}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Confirm delete modal */}
-      {confirmDelete&&(
-        <Modal onClose={()=>setConfirmDelete(null)}>
-          <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, color:T.heading, fontWeight:400, marginBottom:12 }}>Hirdetés törlése</h2>
-          <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:14, color:T.muted, lineHeight:1.7, marginBottom:28 }}>Biztosan törölni szeretnéd a <strong style={{color:T.heading}}>{confirmDelete.brand} {confirmDelete.name}</strong> hirdetést? Ez nem visszavonható.</p>
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={()=>handleDelete(confirmDelete)} style={{ flex:1, background:ACC.red, border:"none", color:"#fff", padding:"13px", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:13, fontWeight:700 }}>Igen, törlöm</button>
-            <button onClick={()=>setConfirmDelete(null)} style={{ flex:1, background:"transparent", border:`1px solid ${B.borderDk}`, color:T.muted, padding:"13px", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:13, fontWeight:600 }}>Mégse</button>
-          </div>
-        </Modal>
-      )}
-
-      {/* Confirm ban modal */}
-      {confirmBan&&(
-        <Modal onClose={()=>setConfirmBan(null)}>
-          <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, color:T.heading, fontWeight:400, marginBottom:12 }}>{confirmBan.banned?"Tiltás feloldása":"Felhasználó tiltása"}</h2>
-          <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:14, color:T.muted, lineHeight:1.7, marginBottom:28 }}><strong style={{color:T.heading}}>{confirmBan.name}</strong> — {confirmBan.banned?"valóban fel szeretnéd oldani a tiltást?":"valóban le szeretnéd tiltani ezt a felhasználót?"}</p>
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={()=>handleBan(confirmBan)} style={{ flex:1, background:confirmBan.banned?ACC.green:ACC.red, border:"none", color:"#fff", padding:"13px", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:13, fontWeight:700 }}>{confirmBan.banned?"Feloldás":"Tiltás"}</button>
-            <button onClick={()=>setConfirmBan(null)} style={{ flex:1, background:"transparent", border:`1px solid ${B.borderDk}`, color:T.muted, padding:"13px", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:13, fontWeight:600 }}>Mégse</button>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-// ─── HOME ────────────────────────────────────────────────────────────────────
+// ─── HOME ─────────────────────────────────────────────────────────────────────
 function Home({ go, listings, profiles }) {
-  const pinned   = listings.filter(l=>l.pinned&&l.status!=="sold");
-  const featured = listings.filter(l=>l.type==="sell"&&l.status!=="sold"&&!l.pinned).slice(0,4);
-  const decants  = listings.filter(l=>l.listing_type==="decant"&&l.status!=="sold").slice(0,3);
+  const featured=listings.filter(l=>l.type==="sell"&&l.status!=="sold").slice(0,4);
+  const decants=listings.filter(l=>l.listing_type==="decant"&&l.status!=="sold").slice(0,3);
   return (
     <div style={{ paddingTop:62 }}>
-      <section style={{ minHeight:"80vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", position:"relative", overflow:"hidden", padding:"100px 24px 80px", background:B.canvas }}>
-        <div style={{ position:"absolute", inset:0, backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 79px,${B.border}50 79px,${B.border}50 80px)`, pointerEvents:"none", opacity:.4 }}/>
-        <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:ACC.gold, letterSpacing:5, marginBottom:28, fontWeight:700, textTransform:"uppercase", position:"relative" }}>Magyar Parfüm Közösség</p>
-        <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:"clamp(48px,8vw,96px)", fontWeight:400, color:T.heading, lineHeight:1.0, marginBottom:20, letterSpacing:-1, position:"relative", maxWidth:820 }}>
-          Adj. Végy.<br/><em style={{ color:ACC.gold, fontStyle:"italic" }}>Szaglászkodj.</em>
+      {/* Hero */}
+      <section style={{ minHeight:"80vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden",padding:"100px 24px 80px",background:B.canvas }}>
+        {/* Subtle decorative lines */}
+        <div style={{ position:"absolute",inset:0,backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 79px,${B.border}50 79px,${B.border}50 80px)`,pointerEvents:"none",opacity:.4 }}/>
+        <p style={{ fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:5,marginBottom:28,fontWeight:700,textTransform:"uppercase",position:"relative" }}>Magyar Parfüm Közösség</p>
+        <h1 style={{ fontFamily:"'Playfair Display',serif",fontSize:"clamp(48px,8vw,96px)",fontWeight:400,color:T.heading,lineHeight:1.0,marginBottom:20,letterSpacing:-1,position:"relative",maxWidth:820 }}>
+          Adj. Végy.<br/><em style={{ color:ACC.gold,fontStyle:"italic" }}>Szaglászkodj.</em>
         </h1>
-        <div style={{ width:60, height:1, background:ACC.gold, margin:"0 auto 28px", position:"relative" }}/>
-        <p style={{ color:T.muted, fontSize:16, maxWidth:480, lineHeight:1.9, marginBottom:52, fontFamily:"'Manrope',sans-serif", position:"relative" }}>
-          Niche és designer parfümök, <strong style={{color:T.body,fontWeight:600}}>dekantok</strong> és teljes üvegek biztonságos adásvételéhez.
+        <div style={{ width:60,height:1,background:ACC.gold,margin:"0 auto 28px",position:"relative" }}/>
+        <p style={{ color:T.muted,fontSize:16,maxWidth:480,lineHeight:1.9,marginBottom:52,fontFamily:"'Manrope',sans-serif",position:"relative" }}>
+          Niche és designer parfümök, <strong style={{ color:T.body,fontWeight:600 }}>dekantok</strong> és teljes üvegek biztonságos adásvételéhez.
         </p>
-        <div style={{ display:"flex", gap:12, flexWrap:"wrap", justifyContent:"center", position:"relative" }}>
-          <button onClick={()=>go("market")} style={{ background:ACC.ink, border:"none", color:B.canvas, padding:"16px 44px", borderRadius:6, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:14, fontWeight:700, letterSpacing:.5, boxShadow:"0 4px 20px rgba(0,0,0,.12)" }}>Böngéssz a piacon →</button>
-          <button onClick={()=>go("sell")} style={{ background:"transparent", border:`1px solid ${B.borderDk}`, color:T.body, padding:"16px 44px", borderRadius:6, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:14, fontWeight:600, letterSpacing:.5 }}>Hirdetést feladok</button>
+        <div style={{ display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center",position:"relative" }}>
+          <button onClick={()=>go("market")} style={{
+            background:ACC.ink,border:"none",color:B.canvas,
+            padding:"16px 44px",borderRadius:6,cursor:"pointer",
+            fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:700,letterSpacing:.5,
+            boxShadow:"0 4px 20px rgba(0,0,0,.12)",
+          }}>Böngéssz a piacon →</button>
+          <button onClick={()=>go("sell")} style={{
+            background:"transparent",border:`1px solid ${B.borderDk}`,color:T.body,
+            padding:"16px 44px",borderRadius:6,cursor:"pointer",
+            fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:600,letterSpacing:.5,
+          }}>Hirdetést feladok</button>
         </div>
       </section>
 
-      <div style={{ background:ACC.ink, padding:"24px 60px", display:"flex", gap:60, justifyContent:"center", flexWrap:"wrap" }}>
+      {/* Stats strip */}
+      <div style={{ background:ACC.ink,padding:"24px 60px",display:"flex",gap:60,justifyContent:"center",flexWrap:"wrap" }}>
         {[["Hirdetés","élőben"],["Értékelés","közösségtől"],["Csere","lehetséges"]].map(([n,l])=>(
           <div key={l} style={{ textAlign:"center" }}>
-            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:26, color:ACC.goldWarm }}>∞</div>
-            <div style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:"rgba(250,248,244,.5)", letterSpacing:2, fontWeight:600, textTransform:"uppercase", marginTop:3 }}>{l}</div>
+            <div style={{ fontFamily:"'Playfair Display',serif",fontSize:26,color:ACC.goldWarm,fontWeight:400 }}>∞</div>
+            <div style={{ fontFamily:"'Manrope',sans-serif",fontSize:10,color:"rgba(250,248,244,.5)",letterSpacing:2,fontWeight:600,textTransform:"uppercase",marginTop:3 }}>{l}</div>
           </div>
         ))}
       </div>
 
-      {pinned.length>0&&(
-        <section style={{ padding:"64px 48px 0", maxWidth:1200, margin:"0 auto" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:32 }}>
-            <div>
-              <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:ACC.gold, letterSpacing:3, fontWeight:700, marginBottom:6 }}>📌 KIEMELT</p>
-              <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:32, color:T.heading, fontWeight:400 }}>Pinelt hirdetések</h2>
-            </div>
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(272px,1fr))", gap:18 }}>
-            {pinned.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]}/>)}
-          </div>
-        </section>
-      )}
-
       {featured.length>0&&(
-        <section style={{ padding:"64px 48px", maxWidth:1200, margin:"0 auto" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:36 }}>
+        <section style={{ padding:"72px 48px",maxWidth:1200,margin:"0 auto" }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:40 }}>
             <div>
-              <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:ACC.gold, letterSpacing:3, fontWeight:700, marginBottom:8 }}>KIEMELTEK</p>
-              <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:36, color:T.heading, fontWeight:400 }}>Friss eladások</h2>
+              <p style={{ fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8 }}>KIEMELTEK</p>
+              <h2 style={{ fontFamily:"'Playfair Display',serif",fontSize:36,color:T.heading,fontWeight:400 }}>Friss eladások</h2>
             </div>
-            <button onClick={()=>go("market")} style={{ background:"none", border:`1px solid ${B.borderDk}`, color:T.muted, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:11, letterSpacing:1, fontWeight:600, padding:"7px 16px", borderRadius:4 }}>MIND →</button>
+            <button onClick={()=>go("market")} style={{ background:"none",border:`1px solid ${B.borderDk}`,color:T.muted,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:11,letterSpacing:1,fontWeight:600,padding:"7px 16px",borderRadius:4 }}>MIND →</button>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(272px,1fr))", gap:18 }}>
-            {featured.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]}/>)}
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(272px,1fr))",gap:18 }}>
+            {featured.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>{}}/>)}
           </div>
         </section>
       )}
 
       {decants.length>0&&(
-        <section style={{ padding:"0 48px 80px", maxWidth:1200, margin:"0 auto" }}>
-          <div style={{ background:B.paper, border:`1px solid ${B.border}`, borderRadius:12, padding:"44px 40px" }}>
-            <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:ACC.gold, letterSpacing:3, fontWeight:700, marginBottom:8 }}>DEKANTOK</p>
-            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:32, color:T.heading, fontWeight:400, marginBottom:30 }}>Kipróbálnád először?</h2>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(258px,1fr))", gap:16 }}>
-              {decants.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]}/>)}
+        <section style={{ padding:"0 48px 80px",maxWidth:1200,margin:"0 auto" }}>
+          <div style={{ background:B.paper,border:`1px solid ${B.border}`,borderRadius:12,padding:"44px 40px" }}>
+            <p style={{ fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8 }}>DEKANTOK</p>
+            <h2 style={{ fontFamily:"'Playfair Display',serif",fontSize:32,color:T.heading,fontWeight:400,marginBottom:30 }}>Kipróbálnád először?</h2>
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(258px,1fr))",gap:16 }}>
+              {decants.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>{}}/>)}
             </div>
           </div>
         </section>
       )}
 
-      <footer style={{ borderTop:`1px solid ${B.border}`, padding:"30px 48px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
-        <span style={{ fontFamily:"'Playfair Display',serif", fontSize:16, color:T.heading, fontWeight:600, letterSpacing:2 }}>SCENTRADE</span>
-        <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:11, color:T.faint, letterSpacing:1 }}>© 2025 · Parfüm közösségi platform</p>
+      <footer style={{ borderTop:`1px solid ${B.border}`,padding:"30px 48px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12 }}>
+        <span style={{ fontFamily:"'Playfair Display',serif",fontSize:16,color:T.heading,fontWeight:600,letterSpacing:2 }}>SCENTRADE</span>
+        <p style={{ fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint,letterSpacing:1 }}>© 2025 · Parfüm közösségi platform</p>
       </footer>
     </div>
   );
 }
 
-// ─── MARKET ──────────────────────────────────────────────────────────────────
+// ─── MARKET ───────────────────────────────────────────────────────────────────
 function Market({ listings, profiles, go, setSelId }) {
   const [q,setQ]=useState(""); const [cat,setCat]=useState("Összes"); const [typeF,setTypeF]=useState("all");
   const [listF,setListF]=useState("all"); const [sort,setSort]=useState("newest"); const [hideS,setHideS]=useState(true);
@@ -709,87 +544,213 @@ function Market({ listings, profiles, go, setSelId }) {
     const sq=q.toLowerCase();
     return(!sq||(l.brand||"").toLowerCase().includes(sq)||(l.name||"").toLowerCase().includes(sq))&&
       (cat==="Összes"||l.category===cat)&&(typeF==="all"||l.type===typeF)&&(listF==="all"||l.listing_type===listF);
-  }).sort((a,b)=>{
-    if (a.pinned&&!b.pinned) return -1; if (!a.pinned&&b.pinned) return 1;
-    return sort==="newest"?new Date(b.created_at)-new Date(a.created_at):sort==="price_asc"?a.price-b.price:b.price-a.price;
-  });
-  const inp={ background:B.canvas, border:`1px solid ${B.border}`, color:T.body, padding:"9px 14px", borderRadius:6, fontFamily:"'Manrope',sans-serif", fontSize:13, outline:"none", fontWeight:500 };
+  }).sort((a,b)=>sort==="newest"?new Date(b.created_at)-new Date(a.created_at):sort==="price_asc"?a.price-b.price:b.price-a.price);
+
+  const inp={
+    background:B.canvas,border:`1px solid ${B.border}`,color:T.body,
+    padding:"9px 14px",borderRadius:6,fontFamily:"'Manrope',sans-serif",
+    fontSize:13,outline:"none",fontWeight:500,
+  };
   return (
-    <div style={{ paddingTop:62, minHeight:"100vh", background:B.canvas }}>
-      <div style={{ background:B.paper, borderBottom:`1px solid ${B.border}`, padding:"32px 48px" }}>
-        <div style={{ maxWidth:1200, margin:"0 auto" }}>
-          <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:ACC.gold, letterSpacing:3, fontWeight:700, marginBottom:8 }}>MARKETPLACE</p>
-          <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:44, color:T.heading, fontWeight:400, marginBottom:28 }}>Piac</h1>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+    <div style={{ paddingTop:62,minHeight:"100vh",background:B.canvas }}>
+      <div style={{ background:B.paper,borderBottom:`1px solid ${B.border}`,padding:"32px 48px" }}>
+        <div style={{ maxWidth:1200,margin:"0 auto" }}>
+          <p style={{ fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8 }}>MARKETPLACE</p>
+          <h1 style={{ fontFamily:"'Playfair Display',serif",fontSize:44,color:T.heading,fontWeight:400,marginBottom:28 }}>Piac</h1>
+          <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Keresés márka, név..." style={{...inp,width:220}}/>
-            {[[typeF,setTypeF,[["all","Eladó + Keresett"],["sell","Csak eladó"],["buy","Csak keresett"]]],[listF,setListF,[["all","Teljes + Dekant"],["full","Csak teljes"],["decant","Csak dekant"]]],[sort,setSort,[["newest","Legújabb"],["price_asc","Legolcsóbb"],["price_desc","Legdrágább"]]]].map(([val,setter,opts],i)=>(
+            {[
+              [typeF,setTypeF,[["all","Eladó + Keresett"],["sell","Csak eladó"],["buy","Csak keresett"]]],
+              [listF,setListF,[["all","Teljes + Dekant"],["full","Csak teljes"],["decant","Csak dekant"]]],
+              [sort,setSort,[["newest","Legújabb"],["price_asc","Legolcsóbb"],["price_desc","Legdrágább"]]],
+            ].map(([val,setter,opts],i)=>(
               <select key={i} value={val} onChange={e=>setter(e.target.value)} style={{...inp,cursor:"pointer"}}>
                 {opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
               </select>
             ))}
-            <button onClick={()=>setHideS(v=>!v)} style={{ background:!hideS?ACC.goldPale:"transparent", border:`1px solid ${!hideS?ACC.gold:B.borderDk}`, color:!hideS?ACC.gold:T.muted, padding:"9px 14px", borderRadius:6, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:600 }}>{hideS?"Eladottak mutatása":"Eladottak elrejtése"}</button>
+            <button onClick={()=>setHideS(v=>!v)} style={{
+              background:!hideS?ACC.goldPale:"transparent",
+              border:`1px solid ${!hideS?ACC.gold:B.borderDk}`,
+              color:!hideS?ACC.gold:T.muted,
+              padding:"9px 14px",borderRadius:6,cursor:"pointer",
+              fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600,
+            }}>{hideS?"Eladottak mutatása":"Eladottak elrejtése"}</button>
           </div>
-          <div style={{ display:"flex", gap:5, marginTop:16, flexWrap:"wrap" }}>
+          <div style={{ display:"flex",gap:5,marginTop:16,flexWrap:"wrap" }}>
             {CATS.map(c=>(
-              <button key={c} onClick={()=>setCat(c)} style={{ background:cat===c?ACC.ink:"transparent", border:`1px solid ${cat===c?ACC.ink:B.border}`, color:cat===c?B.canvas:T.muted, padding:"5px 14px", borderRadius:4, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:10, letterSpacing:1, textTransform:"uppercase", fontWeight:cat===c?700:500, transition:"all .15s" }}>{c}</button>
+              <button key={c} onClick={()=>setCat(c)} style={{
+                background:cat===c?ACC.ink:"transparent",
+                border:`1px solid ${cat===c?ACC.ink:B.border}`,
+                color:cat===c?B.canvas:T.muted,
+                padding:"5px 14px",borderRadius:4,cursor:"pointer",
+                fontFamily:"'Manrope',sans-serif",fontSize:10,letterSpacing:1,
+                textTransform:"uppercase",fontWeight:cat===c?700:500,
+                transition:"all .15s",
+              }}>{c}</button>
             ))}
           </div>
         </div>
       </div>
-      <div style={{ padding:"36px 48px", maxWidth:1200, margin:"0 auto" }}>
-        <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:11, color:T.faint, marginBottom:24, letterSpacing:1, fontWeight:600 }}>{filtered.length} HIRDETÉS</p>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(272px,1fr))", gap:18 }}>
+      <div style={{ padding:"36px 48px",maxWidth:1200,margin:"0 auto" }}>
+        <p style={{ fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint,marginBottom:24,letterSpacing:1,fontWeight:600 }}>{filtered.length} HIRDETÉS</p>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(272px,1fr))",gap:18 }}>
           {filtered.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>{setSelId(l.id);go("detail");}}/>)}
         </div>
-        {filtered.length===0&&<div style={{ textAlign:"center", padding:"90px 0", color:T.faint, fontFamily:"'Manrope',sans-serif", fontSize:13 }}>{listings.length===0?"Még nincsenek hirdetések. Légy az első!":"Nincs találat."}</div>}
+        {filtered.length===0&&<div style={{ textAlign:"center",padding:"90px 0",color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:13 }}>{listings.length===0?"Még nincsenek hirdetések. Légy az első!":"Nincs találat."}</div>}
       </div>
     </div>
   );
 }
 
-// ─── DETAIL ──────────────────────────────────────────────────────────────────
-function Detail({ l, u, curProfile, go, setProfileId, setActiveChatWith, onStatusChange, showToast }) {
-  const [showOffer, setShowOffer] = useState(false);
-  const [offerVal, setOfferVal]   = useState("");
-  const [faved, setFaved]         = useState(false);
-  const [status, setStatus]       = useState(l.status||"active");
-  const isDecant = l.listing_type==="decant", isOwn = curProfile?.id===l.user_id;
-  const admin = isAdmin(curProfile);
+// ─── REVIEW MODAL ────────────────────────────────────────────────────────────
+function ReviewModal({ targetUser, fromUser, listingId, transactionType="full", onClose, onDone }) {
+  const [rating, setRating] = useState(5);
+  const textRef = useRef(null);
+  const [saving, setSaving] = useState(false);
 
-  async function openMsg() { if(!curProfile){go("login");return;} setActiveChatWith(u.id);go("messages"); }
+  async function submit() {
+    const text = textRef.current?.value?.trim() || "";
+    setSaving(true);
+    // Insert review
+    await supabase.from("reviews").insert({
+      from_user: fromUser.id,
+      to_user:   targetUser.id,
+      rating,
+      text,
+      transaction_type: transactionType,
+      listing_id: listingId,
+    });
+    // Recalculate avg rating for target user
+    const { data: revs } = await supabase.from("reviews").select("rating").eq("to_user", targetUser.id);
+    if (revs?.length) {
+      const avg = (revs.reduce((s,r)=>s+r.rating,0)/revs.length).toFixed(2);
+      await supabase.from("profiles").update({ rating: parseFloat(avg), rating_count: revs.length }).eq("id", targetUser.id);
+    }
+    setSaving(false);
+    onDone?.();
+    onClose();
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:24 }}>
+        <Ava u={targetUser} size={52}/>
+        <div>
+          <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2, fontWeight:700, marginBottom:4 }}>ÉRTÉKELÉS</p>
+          <p style={{ fontFamily:"'Playfair Display',serif", fontSize:24, color:T.heading }}>{targetUser.name}</p>
+        </div>
+      </div>
+      <Pill text="✓ Verified Purchase" bg={ACC.greenPale} col={ACC.green}/>
+      <div style={{ margin:"22px 0" }}>
+        <Stars v={rating} size={34} interactive onChange={setRating}/>
+        <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:11, color:T.faint, marginTop:6 }}>{["","Nagyon rossz","Rossz","Elfogadható","Jó","Kiváló"][rating]}</p>
+      </div>
+      <textarea ref={textRef} rows={4} placeholder="Hogyan ment az üzlet? Csomagolás, gyorsaság, kommunikáció..."
+        style={{ background:B.paper, border:`1px solid ${B.border}`, color:T.body, padding:"13px 15px", borderRadius:7, width:"100%", fontFamily:"'Manrope',sans-serif", fontSize:14, resize:"vertical", outline:"none", boxSizing:"border-box", marginBottom:18, lineHeight:1.7 }}/>
+      <button onClick={submit} disabled={saving} style={{ background:ACC.ink, border:"none", color:B.canvas, padding:"14px", width:"100%", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:14, fontWeight:700, opacity:saving?.6:1 }}>
+        {saving?"Küldés...":"Értékelés elküldése →"}
+      </button>
+    </Modal>
+  );
+}
+
+// ─── DETAIL ───────────────────────────────────────────────────────────────────
+function Detail({ l, u, curProfile, go, setProfileId, setActiveChatWith, onStatusChange, onListingUpdate }) {
+  const [showOffer, setShowOffer]   = useState(false);
+  const [offerVal, setOfferVal]     = useState("");
+  const [faved, setFaved]           = useState(false);
+  const [status, setStatus]         = useState(l.status || "active");
+  const [views, setViews]           = useState(l.views || 0);
+  const [buyerId, setBuyerId]       = useState(l.buyer_id || null);
+
+  // Sold flow state
+  const [showSoldModal, setShowSoldModal]   = useState(false);
+  const [buyerSearch, setBuyerSearch]       = useState("");
+  const [searchResults, setSearchResults]   = useState([]);
+  const [selectedBuyer, setSelectedBuyer]   = useState(null);
+  const [searchLoading, setSearchLoading]   = useState(false);
+  const [msgPartners, setMsgPartners]       = useState([]);
+  const [loadingPartners, setLoadingPartners] = useState(false);
+
+  // Review modals
+  const [showSellerReview, setShowSellerReview] = useState(false); // vevő értékeli az eladót
+  const [showBuyerReview, setShowBuyerReview]   = useState(false); // eladó értékeli a vevőt
+  const [confirmedBuyer, setConfirmedBuyer]     = useState(null);  // a megerősített vevő profile
+
+  const isDecant = l.listing_type === "decant";
+  const isOwn    = curProfile?.id === l.user_id;
+  const isBuyer  = curProfile?.id === buyerId && status === "sold";
+
+  // ── Nézettség növelése mountkor (saját hirdetésnél nem számít)
+  useEffect(() => {
+    if (!l.id || isOwn) return;
+    const newViews = (l.views || 0) + 1;
+    supabase.from("listings").update({ views: newViews }).eq("id", l.id);
+    setViews(newViews);
+    onListingUpdate?.(l.id, { views: newViews });
+  }, [l.id]);
+
+  async function openMsg() {
+    if (!curProfile) { go("login"); return; }
+    setActiveChatWith(u.id); go("messages");
+  }
+
+  // Eladva gomb → modal megnyitása + üzenetpartnerek betöltése
+  async function openSoldModal() {
+    setShowSoldModal(true);
+    setLoadingPartners(true);
+    setBuyerSearch(""); setSearchResults([]); setSelectedBuyer(null);
+    const { data } = await supabase.from("messages").select("*")
+      .or(`from_user.eq.${curProfile.id},to_user.eq.${curProfile.id}`)
+      .order("created_at", { ascending:false });
+    if (data) {
+      const seen = new Set(), ids = [];
+      data.forEach(m => { const p = m.from_user===curProfile.id?m.to_user:m.from_user; if(!seen.has(p)){seen.add(p);ids.push(p);}});
+      if (ids.length) {
+        const { data:pd } = await supabase.from("profiles").select("id,name,sales,email").in("id", ids);
+        setMsgPartners(pd || []);
+      }
+    }
+    setLoadingPartners(false);
+  }
+
+  async function searchBuyer(q) {
+    setBuyerSearch(q);
+    if (q.trim().length < 2) { setSearchResults([]); return; }
+    setSearchLoading(true);
+    const { data } = await supabase.from("profiles").select("id,name,sales").ilike("name", `%${q}%`).neq("id", curProfile.id).limit(6);
+    setSearchResults(data || []);
+    setSearchLoading(false);
+  }
+
+  async function confirmSold() {
+    if (!selectedBuyer) return;
+    await supabase.from("listings").update({ status:"sold", buyer_id:selectedBuyer.id }).eq("id", l.id);
+    // Eladások számlálója nő az eladónál
+    await supabase.from("profiles").update({ sales:(u?.sales||0)+1 }).eq("id", curProfile.id);
+    setStatus("sold");
+    setBuyerId(selectedBuyer.id);
+    onStatusChange?.(l.id, "sold");
+    setShowSoldModal(false);
+    setConfirmedBuyer(selectedBuyer);
+    // Eladó azonnal értékelheti a vevőt
+    setShowBuyerReview(true);
+  }
+
   async function changeStatus(s) {
-    await supabase.from("listings").update({status:s}).eq("id",l.id);
-    setStatus(s); onStatusChange?.(l.id,s);
-  }
-  async function adminDelete() {
-    if(!window.confirm("Biztosan törlöd ezt a hirdetést?"))return;
-    await supabase.from("listings").delete().eq("id",l.id);
-    showToast("Hirdetés törölve.","success");
-    go("market");
-  }
-  async function adminPin() {
-    const newVal=!l.pinned;
-    await supabase.from("listings").update({pinned:newVal}).eq("id",l.id);
-    onStatusChange?.(l.id,status);
-    showToast(newVal?"Hirdetés kiemelve.":"Kiemelés eltávolítva.","success");
+    if (s === "sold") { openSoldModal(); return; }
+    await supabase.from("listings").update({ status:s }).eq("id", l.id);
+    setStatus(s); onStatusChange?.(l.id, s);
   }
 
-  const sCol=status==="sold"?ACC.green:status==="pending"?ACC.gold:T.muted;
+  const sCol = status==="sold"?ACC.green:status==="pending"?ACC.gold:T.muted;
+
   return (
     <div style={{ paddingTop:62, maxWidth:980, margin:"0 auto", padding:"80px 40px", background:B.canvas }}>
-      <button onClick={()=>go("market")} style={{ background:"none", border:"none", color:T.faint, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:11, letterSpacing:1, marginBottom:36, fontWeight:600 }}>← VISSZA A PIACRA</button>
-      {/* Admin quick actions bar */}
-      {admin&&(
-        <div style={{ background:ACC.adminPale, border:`1px solid ${ACC.adminMid}`, borderRadius:8, padding:"12px 20px", marginBottom:28, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-          <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:11, color:ACC.admin, fontWeight:700, letterSpacing:1 }}>⚡ ADMIN</span>
-          <button onClick={adminPin} style={{ background:"transparent", border:`1px solid ${ACC.goldMid}`, color:ACC.gold, padding:"6px 14px", borderRadius:5, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:11, fontWeight:700 }}>{l.pinned?"📌 Kiemelés eltávolítása":"📌 Kiemelés"}</button>
-          <button onClick={adminDelete} style={{ background:ACC.redPale, border:`1px solid ${ACC.red}30`, color:ACC.red, padding:"6px 14px", borderRadius:5, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:11, fontWeight:700 }}>🗑 Hirdetés törlése</button>
-        </div>
-      )}
+      <button onClick={()=>go("market")} style={{ background:"none", border:"none", color:T.faint, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:11, letterSpacing:1, marginBottom:36, fontWeight:600, display:"flex", alignItems:"center", gap:6 }}>← VISSZA A PIACRA</button>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 300px", gap:52 }}>
         <div>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:24 }}>
-            {l.pinned&&<Pill text="📌 Kiemelt" bg={ACC.goldPale} col={ACC.gold}/>}
             <Pill text={l.type==="buy"?"Keresett":"Eladó"} bg={l.type==="buy"?"#eef4fb":"#faf8f0"} col={l.type==="buy"?"#4a78b0":ACC.gold}/>
             <Pill text={isDecant?"Dekant":"Teljes üveg"} bg={isDecant?"#fff5ee":"#f2faf6"} col={isDecant?"#c0724a":ACC.green}/>
             {l.condition&&<Pill text={COND[l.condition]} bg={COND_COLOR[l.condition]+"12"} col={COND_COLOR[l.condition]}/>}
@@ -814,14 +775,17 @@ function Detail({ l, u, curProfile, go, setProfileId, setActiveChatWith, onStatu
           {isOwn&&(
             <div style={{ border:`1px solid ${B.border}`, borderRadius:8, padding:"20px 24px", background:B.paper }}>
               <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2, marginBottom:16, fontWeight:700 }}>HIRDETÉS STÁTUSZA</p>
-              <div style={{ display:"flex", gap:8 }}>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                 {[["active","Aktív",T.muted],["pending","Függőben",ACC.gold],["sold","Eladva",ACC.green]].map(([s,label,c])=>(
-                  <button key={s} onClick={()=>changeStatus(s)} style={{ background:status===s?c+"12":"transparent", border:`1px solid ${status===s?c+"44":B.border}`, color:status===s?c:T.faint, padding:"8px 16px", borderRadius:5, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:11, fontWeight:status===s?700:500, transition:"all .15s" }}>{label}</button>
+                  <button key={s} onClick={()=>changeStatus(s)}
+                    style={{ background:status===s?c+"12":"transparent", border:`1px solid ${status===s?c+"44":B.border}`, color:status===s?c:T.faint, padding:"8px 16px", borderRadius:5, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:11, fontWeight:status===s?700:500, transition:"all .15s" }}>{label}</button>
                 ))}
               </div>
             </div>
           )}
         </div>
+
+        {/* Jobb panel */}
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           <div style={{ border:`1px solid ${B.border}`, borderRadius:8, padding:"22px 20px", background:B.paper }}>
             <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2, marginBottom:18, fontWeight:700 }}>ELADÓ</p>
@@ -840,7 +804,14 @@ function Detail({ l, u, curProfile, go, setProfileId, setActiveChatWith, onStatu
               <Stars v={u?.rating||0} size={14}/>
               <span style={{ fontSize:12, color:T.muted, fontFamily:"'Manrope',sans-serif" }}>{u?.rating||0} · {u?.rating_count||0} értékelés</span>
             </div>
+            {/* Nézettség */}
+            <div style={{ marginTop:14, paddingTop:12, borderTop:`1px solid ${B.border}`, display:"flex", alignItems:"center", gap:6 }}>
+              <span style={{ fontSize:13 }}>👁</span>
+              <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, color:T.faint }}>{views} megtekintés</span>
+            </div>
           </div>
+
+          {/* Vevő gombjai */}
           {!isOwn&&status!=="sold"&&(
             <>
               <button onClick={openMsg} style={{ background:ACC.ink, border:"none", color:B.canvas, padding:"14px", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:14, fontWeight:700 }}>✉ Üzenet küldése</button>
@@ -855,7 +826,20 @@ function Detail({ l, u, curProfile, go, setProfileId, setActiveChatWith, onStatu
               )}
             </>
           )}
-          {status==="sold"&&<div style={{ background:ACC.greenPale, border:`1px solid ${ACC.green}30`, borderRadius:7, padding:"16px", textAlign:"center" }}><p style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, color:ACC.green, letterSpacing:1, fontWeight:700 }}>✓ ELADVA</p></div>}
+
+          {/* Vevő értékeli az eladót — ha ez a hirdetés vevője */}
+          {isBuyer&&(
+            <button onClick={()=>setShowSellerReview(true)} style={{ background:`linear-gradient(135deg,${ACC.gold},#8a6a20)`, border:"none", color:"#fff", padding:"14px", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:13, fontWeight:700 }}>
+              ⭐ Értékelem az eladót
+            </button>
+          )}
+
+          {status==="sold"&&!isBuyer&&(
+            <div style={{ background:ACC.greenPale, border:`1px solid ${ACC.green}30`, borderRadius:7, padding:"16px", textAlign:"center" }}>
+              <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, color:ACC.green, letterSpacing:1, fontWeight:700 }}>✓ ELADVA</p>
+            </div>
+          )}
+
           <div style={{ border:`1px solid ${B.border}`, borderRadius:7, padding:"16px 18px", background:B.paper }}>
             <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:9, color:T.faint, letterSpacing:1.5, marginBottom:12, fontWeight:700 }}>BIZTONSÁGOS VÁSÁRLÁS</p>
             {["Valódi értékelések","PM alapú egyeztetés","Hitelesített jelvény","Átverés bejelentés"].map(txt=>(
@@ -866,11 +850,99 @@ function Detail({ l, u, curProfile, go, setProfileId, setActiveChatWith, onStatu
           </div>
         </div>
       </div>
+
+      {/* ── ELADVA MODAL: vevő kiválasztása ── */}
+      {showSoldModal&&(
+        <Modal onClose={()=>setShowSoldModal(false)}>
+          <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, color:T.heading, fontWeight:400, marginBottom:8 }}>Kinek adtad el?</h2>
+          <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, color:T.muted, marginBottom:22, lineHeight:1.7 }}>Keresd meg névvel, vagy válaszd ki az üzenetpartnereid közül.</p>
+
+          {/* Keresés */}
+          <div style={{ marginBottom:20 }}>
+            <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2, marginBottom:8, fontWeight:700, textTransform:"uppercase" }}>Keresés névvel</p>
+            <div style={{ position:"relative" }}>
+              <input value={buyerSearch} onChange={e=>searchBuyer(e.target.value)} placeholder="pl. illatmester_bp" autoComplete="off"
+                style={{ width:"100%", background:B.paper, border:`1px solid ${B.border}`, color:T.body, padding:"12px 15px", borderRadius:7, fontFamily:"'Manrope',sans-serif", fontSize:14, outline:"none", boxSizing:"border-box" }}/>
+              {searchLoading&&<span style={{ position:"absolute", right:14, top:"50%", transform:"translateY(-50%)", color:T.faint, fontSize:12 }}>…</span>}
+            </div>
+            {searchResults.length>0&&(
+              <div style={{ marginTop:8, display:"flex", flexDirection:"column", gap:6 }}>
+                {searchResults.map(p=>(
+                  <div key={p.id} onClick={()=>{setSelectedBuyer(p);setBuyerSearch(p.name);setSearchResults([]);}}
+                    style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", borderRadius:7, cursor:"pointer", background:selectedBuyer?.id===p.id?ACC.goldPale:B.paper, border:`1px solid ${selectedBuyer?.id===p.id?ACC.gold:B.border}` }}>
+                    <Ava u={p} size={32}/><div style={{ flex:1 }}><div style={{ fontFamily:"'Playfair Display',serif", fontSize:16, color:T.heading }}>{p.name}</div><RankBadge sales={p.sales||0}/></div>
+                    {selectedBuyer?.id===p.id&&<span style={{ color:ACC.gold, fontSize:16 }}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Elválasztó */}
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+            <div style={{ flex:1, height:1, background:B.border }}/><span style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2 }}>VAGY</span><div style={{ flex:1, height:1, background:B.border }}/>
+          </div>
+
+          {/* Üzenetpartnerek */}
+          <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2, marginBottom:10, fontWeight:700, textTransform:"uppercase" }}>Üzenetpartnereid</p>
+          {loadingPartners?(
+            <p style={{ color:T.faint, fontFamily:"'Manrope',sans-serif", fontSize:12, padding:"16px 0" }}>Betöltés...</p>
+          ):(
+            <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:20, maxHeight:220, overflowY:"auto" }}>
+              {msgPartners.length===0&&<p style={{ color:T.faint, fontFamily:"'Manrope',sans-serif", fontSize:12, padding:"8px 0" }}>Még nincs üzenetpartnered.</p>}
+              {msgPartners.map(p=>(
+                <div key={p.id} onClick={()=>{setSelectedBuyer(p);setBuyerSearch("");setSearchResults([]);}}
+                  style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", borderRadius:7, cursor:"pointer", background:selectedBuyer?.id===p.id?ACC.goldPale:B.paper, border:`1px solid ${selectedBuyer?.id===p.id?ACC.gold:B.border}`, transition:"all .15s" }}>
+                  <Ava u={p} size={34}/><div style={{ flex:1 }}><div style={{ fontFamily:"'Playfair Display',serif", fontSize:16, color:T.heading }}>{p.name}</div><RankBadge sales={p.sales||0}/></div>
+                  {selectedBuyer?.id===p.id&&<span style={{ color:ACC.gold, fontSize:16 }}>✓</span>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {selectedBuyer&&(
+            <div style={{ background:ACC.greenPale, border:`1px solid ${ACC.green}30`, borderRadius:8, padding:"10px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:12 }}>
+              <Ava u={selectedBuyer} size={30}/>
+              <div><p style={{ fontFamily:"'Manrope',sans-serif", fontSize:9, color:ACC.green, letterSpacing:1, fontWeight:700, marginBottom:2 }}>KIVÁLASZTOTT VEVŐ</p><p style={{ fontFamily:"'Playfair Display',serif", fontSize:15, color:T.heading }}>{selectedBuyer.name}</p></div>
+              <button onClick={()=>setSelectedBuyer(null)} style={{ marginLeft:"auto", background:"none", border:"none", color:T.faint, cursor:"pointer", fontSize:18 }}>×</button>
+            </div>
+          )}
+
+          <button onClick={confirmSold} disabled={!selectedBuyer}
+            style={{ background:selectedBuyer?`linear-gradient(135deg,${ACC.green},#2a6a3a)`:B.warm, border:"none", color:selectedBuyer?"#fff":T.faint, padding:"15px", width:"100%", borderRadius:7, cursor:selectedBuyer?"pointer":"not-allowed", fontFamily:"'Manrope',sans-serif", fontSize:14, fontWeight:700, transition:"all .2s" }}>
+            {selectedBuyer?`✓ Eladva – ${selectedBuyer.name}`:"Válassz vevőt a megerősítéshez"}
+          </button>
+        </Modal>
+      )}
+
+      {/* ── Eladó értékeli a VEVŐT (confirmedBuyer) ── */}
+      {showBuyerReview&&confirmedBuyer&&curProfile&&(
+        <ReviewModal
+          targetUser={confirmedBuyer}
+          fromUser={curProfile}
+          listingId={l.id}
+          transactionType="verified"
+          onClose={()=>setShowBuyerReview(false)}
+          onDone={()=>{}}
+        />
+      )}
+
+      {/* ── Vevő értékeli az ELADÓT ── */}
+      {showSellerReview&&u&&curProfile&&(
+        <ReviewModal
+          targetUser={u}
+          fromUser={curProfile}
+          listingId={l.id}
+          transactionType="verified"
+          onClose={()=>setShowSellerReview(false)}
+          onDone={()=>{}}
+        />
+      )}
     </div>
   );
 }
 
-// ─── PROFILE ─────────────────────────────────────────────────────────────────
+// ─── PROFILE ──────────────────────────────────────────────────────────────────
 function Profile({ pu, curProfile, go, listings, setActiveChatWith, onSignOut }) {
   const [tab,setTab]=useState("listings");
   const [reviews,setReviews]=useState([]);
@@ -884,339 +956,220 @@ function Profile({ pu, curProfile, go, listings, setActiveChatWith, onSignOut })
 
   useEffect(()=>{
     if(!pu?.id)return;
-    supabase.from("reviews").select("*").eq("to_user",pu.id).then(({data})=>setReviews(data||[]));
+    supabase.from("reviews").select("*").eq("to_user",pu.id).order("created_at",{ascending:false}).then(({data})=>setReviews(data||[]));
     supabase.from("wishlists").select("*").eq("user_id",pu.id).order("created_at",{ascending:false}).then(({data})=>setWishlist(data||[]));
   },[pu?.id]);
 
-  async function submitReview() {
-    if(!curProfile)return;
-    await supabase.from("reviews").insert({from_user:curProfile.id,to_user:pu.id,rating:myRating,text:myText,transaction_type:"full"});
-    setShowRM(false);setMyText("");
-    const {data}=await supabase.from("reviews").select("*").eq("to_user",pu.id);
-    setReviews(data||[]);
-  }
-
-  async function addWish() {
-    const val=wishRef.current?.value?.trim();
-    if(!val||!curProfile)return;
-    const [brand,...rest]=val.split(" ");
-    const {data}=await supabase.from("wishlists").insert({user_id:curProfile.id,brand,name:rest.join(" "),raw:val}).select().single();
-    if(data){setWishlist(p=>[data,...p]);wishRef.current.value="";}
-  }
-
-  async function removeWish(id) {
-    await supabase.from("wishlists").delete().eq("id",id);
-    setWishlist(p=>p.filter(w=>w.id!==id));
-  }
-
   if(!pu)return null;
   const avg=reviews.length?(reviews.reduce((s,r)=>s+r.rating,0)/reviews.length).toFixed(1):(pu.rating||0).toFixed(1);
-  const admin=isAdmin(pu);
 
   return (
-    <div style={{ paddingTop:62, maxWidth:980, margin:"0 auto", padding:"80px 40px", background:B.canvas }}>
-      <div style={{ display:"flex", gap:32, alignItems:"flex-start", marginBottom:48, flexWrap:"wrap", paddingBottom:40, borderBottom:`1px solid ${B.border}` }}>
+    <div style={{ paddingTop:62,maxWidth:980,margin:"0 auto",padding:"80px 40px",background:B.canvas }}>
+      <div style={{ display:"flex",gap:32,alignItems:"flex-start",marginBottom:48,flexWrap:"wrap",paddingBottom:40,borderBottom:`1px solid ${B.border}` }}>
         <Ava u={pu} size={88}/>
         <div style={{ flex:1 }}>
-          <div style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap", marginBottom:10 }}>
-            <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:40, color:T.heading, fontWeight:400 }}>{pu.name}</h1>
+          <div style={{ display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:10 }}>
+            <h1 style={{ fontFamily:"'Playfair Display',serif",fontSize:40,color:T.heading,fontWeight:400 }}>{pu.name}</h1>
             {pu.verified&&<Pill text="Hitelesített" bg={ACC.goldPale} col={ACC.gold}/>}
-            {admin?<RankBadge isAdmin size="lg"/>:<RankBadge sales={pu.sales||0} size="lg"/>}
-            {pu.banned&&<Pill text="Tiltott" bg={ACC.redPale} col={ACC.red}/>}
+            <RankBadge sales={pu.sales||0} size="lg"/>
           </div>
-          <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:12 }}>
+          <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:12 }}>
             <Stars v={Number(avg)} size={16}/>
-            <span style={{ fontFamily:"'Playfair Display',serif", fontSize:20, color:ACC.gold }}>{avg}</span>
-            <span style={{ color:T.faint, fontSize:13, fontFamily:"'Manrope',sans-serif" }}>({reviews.length} értékelés)</span>
+            <span style={{ fontFamily:"'Playfair Display',serif",fontSize:20,color:ACC.gold }}>{avg}</span>
+            <span style={{ color:T.faint,fontSize:13,fontFamily:"'Manrope',sans-serif" }}>({reviews.length} értékelés)</span>
           </div>
-          <p style={{ color:T.faint, fontSize:13, marginBottom:10, fontFamily:"'Manrope',sans-serif" }}>📍 {pu.location} · Tag: {pu.created_at?.slice(0,7)} óta</p>
-          <p style={{ color:T.muted, fontSize:14, lineHeight:1.85, maxWidth:500, fontFamily:"'Manrope',sans-serif" }}>{pu.bio}</p>
+          <p style={{ color:T.faint,fontSize:13,marginBottom:10,fontFamily:"'Manrope',sans-serif" }}>📍 {pu.location} · Tag: {pu.created_at?.slice(0,7)} óta</p>
+          <p style={{ color:T.muted,fontSize:14,lineHeight:1.85,maxWidth:500,fontFamily:"'Manrope',sans-serif" }}>{pu.bio}</p>
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
           {!isOwn&&curProfile&&(
             <>
-              <button onClick={()=>{setActiveChatWith(pu.id);go("messages");}} style={{ background:ACC.ink, border:"none", color:B.canvas, padding:"10px 22px", borderRadius:6, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:700 }}>✉ ÜZENET</button>
-              <button onClick={()=>setShowRM(true)} style={{ background:"transparent", border:`1px solid ${B.borderDk}`, color:T.body, padding:"10px 22px", borderRadius:6, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:600 }}>⭐ ÉRTÉKELÉS</button>
+              <button onClick={()=>{setActiveChatWith(pu.id);go("messages");}} style={{ background:ACC.ink,border:"none",color:B.canvas,padding:"10px 22px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:700 }}>✉ ÜZENET</button>
+              <button onClick={()=>setShowRM(true)} style={{ background:"transparent",border:`1px solid ${B.borderDk}`,color:T.body,padding:"10px 22px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600 }}>⭐ ÉRTÉKELÉS</button>
             </>
           )}
-          {isOwn&&<button onClick={onSignOut} style={{ background:"transparent", border:`1px solid ${ACC.red}30`, color:ACC.red, padding:"10px 22px", borderRadius:6, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:600 }}>Kijelentkezés</button>}
+          {isOwn&&<button onClick={onSignOut} style={{ background:"transparent",border:`1px solid ${ACC.red}30`,color:ACC.red,padding:"10px 22px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600 }}>Kijelentkezés</button>}
         </div>
       </div>
 
-      {isOwn&&!admin&&<div style={{marginBottom:36}}><RankProgress sales={pu.sales||0}/></div>}
+      {isOwn&&<div style={{ marginBottom:36 }}><RankProgress sales={pu.sales||0}/></div>}
 
-      <div style={{ display:"flex", borderBottom:`1px solid ${B.border}`, marginBottom:36 }}>
+      {/* Tabs */}
+      <div style={{ display:"flex",borderBottom:`1px solid ${B.border}`,marginBottom:36 }}>
         {[["listings",`Hirdetések (${uls.length})`],["reviews",`Értékelések (${reviews.length})`],["wishlist",`Kívánlista (${wishlist.length})`]].map(([k,l])=>(
-          <button key={k} onClick={()=>setTab(k)} style={{ background:"transparent", border:"none", borderBottom:tab===k?`2px solid ${ACC.gold}`:"2px solid transparent", color:tab===k?T.heading:T.faint, padding:"12px 20px", cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:tab===k?700:500, marginBottom:-1, transition:"all .15s" }}>{l}</button>
+          <button key={k} onClick={()=>setTab(k)} style={{
+            background:"transparent",border:"none",
+            borderBottom:tab===k?`2px solid ${ACC.gold}`:"2px solid transparent",
+            color:tab===k?T.heading:T.faint,
+            padding:"12px 20px",cursor:"pointer",
+            fontFamily:"'Manrope',sans-serif",fontSize:12,
+            fontWeight:tab===k?700:500,letterSpacing:.3,
+            marginBottom:-1,
+          }}>{l}</button>
         ))}
       </div>
 
       {tab==="listings"&&(
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(262px,1fr))", gap:16 }}>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(262px,1fr))",gap:16 }}>
           {uls.map(l=><Card key={l.id} l={l} u={pu}/>)}
-          {uls.length===0&&<p style={{ color:T.faint, fontFamily:"'Manrope',sans-serif", fontSize:13 }}>Nincs hirdetés.</p>}
+          {uls.length===0&&<p style={{ color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:13 }}>Nincs hirdetés.</p>}
         </div>
       )}
       {tab==="reviews"&&(
-        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
           {reviews.map((r,i)=>(
-            <div key={i} style={{ border:`1px solid ${B.border}`, borderRadius:8, padding:"18px 22px", background:B.paper }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}><Stars v={r.rating}/><span style={{ color:T.faint, fontFamily:"'Manrope',sans-serif", fontSize:11 }}>{r.created_at?.slice(0,7)}</span></div>
-              <p style={{ color:T.body, fontSize:14, lineHeight:1.8, fontFamily:"'Manrope',sans-serif" }}>{r.text}</p>
+            <div key={i} style={{ border:`1px solid ${B.border}`,borderRadius:8,padding:"18px 22px",background:B.paper }}>
+              <div style={{ display:"flex",justifyContent:"space-between",marginBottom:10 }}><Stars v={r.rating}/><span style={{ color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:11 }}>{r.created_at?.slice(0,7)}</span></div>
+              <p style={{ color:T.body,fontSize:14,lineHeight:1.8,fontFamily:"'Manrope',sans-serif" }}>{r.text}</p>
             </div>
           ))}
-          {reviews.length===0&&<p style={{ color:T.faint, fontFamily:"'Manrope',sans-serif", fontSize:13 }}>Még nincs értékelés.</p>}
+          {reviews.length===0&&<p style={{ color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:13 }}>Még nincs értékelés.</p>}
         </div>
       )}
       {tab==="wishlist"&&(
         <div>
-          <div style={{ border:`1px solid ${B.border}`, borderRadius:8, padding:"22px 26px", marginBottom:28, background:B.paper }}>
-            <p style={{ fontFamily:"'Playfair Display',serif", fontSize:20, color:T.heading, marginBottom:8 }}>🌟 Kívánlista</p>
-            <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, color:T.muted, lineHeight:1.8 }}>Ha valaki feltölti valamelyik keresett parfümodet, automatikus értesítést kapsz.</p>
+          <div style={{ border:`1px solid ${B.border}`,borderRadius:8,padding:"22px 26px",marginBottom:28,background:B.paper }}>
+            <p style={{ fontFamily:"'Playfair Display',serif",fontSize:20,color:T.heading,marginBottom:8 }}>🌟 Kívánlista</p>
+            <p style={{ fontFamily:"'Manrope',sans-serif",fontSize:12,color:T.muted,lineHeight:1.8 }}>Ha valaki feltölti valamelyik keresett parfümodet, automatikus értesítést kapsz.</p>
           </div>
           {isOwn&&(
-            <div style={{ display:"flex", gap:10, marginBottom:24 }}>
-              <input ref={wishRef} placeholder="pl. Creed Aventus" defaultValue="" autoComplete="off"
-                style={{ flex:1, background:B.paper, border:`1px solid ${B.border}`, color:T.body, padding:"12px 15px", borderRadius:7, fontFamily:"'Manrope',sans-serif", fontSize:14, outline:"none" }}/>
-              <button onClick={addWish} style={{ background:ACC.ink, border:"none", color:B.canvas, padding:"12px 20px", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:700, whiteSpace:"nowrap" }}>+ Hozzáad</button>
+            <div style={{ display:"flex",gap:10,marginBottom:24 }}>
+              <input ref={wishRef} placeholder="pl. Creed Aventus  vagy  Dior Sauvage" defaultValue="" autoComplete="off"
+                style={{ flex:1,background:B.paper,border:`1px solid ${B.border}`,color:T.body,padding:"12px 15px",borderRadius:7,fontFamily:"'Manrope',sans-serif",fontSize:14,outline:"none" }}/>
+              <button style={{ background:ACC.ink,border:"none",color:B.canvas,padding:"12px 20px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:700,whiteSpace:"nowrap" }}>+ Hozzáad</button>
             </div>
           )}
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
             {wishlist.map(w=>(
-              <div key={w.id} style={{ border:`1px solid ${B.border}`, borderRadius:8, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:14, background:B.paper }}>
-                <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                  <span style={{fontSize:20}}>🌟</span>
+              <div key={w.id} style={{ border:`1px solid ${B.border}`,borderRadius:8,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,background:B.paper }}>
+                <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+                  <span style={{ fontSize:20 }}>🌟</span>
                   <div>
-                    <div style={{ fontFamily:"'Playfair Display',serif", fontSize:16, color:T.heading }}>{w.raw}</div>
-                    <div style={{ fontFamily:"'Manrope',sans-serif", fontSize:9, color:T.faint, marginTop:2, letterSpacing:1.2, fontWeight:600 }}>ÉRTESÍTÉST KÉREK HA MEGJELENIK</div>
+                    <div style={{ fontFamily:"'Playfair Display',serif",fontSize:16,color:T.heading }}>{w.raw}</div>
+                    <div style={{ fontFamily:"'Manrope',sans-serif",fontSize:9,color:T.faint,marginTop:2,letterSpacing:1.2,fontWeight:600 }}>ÉRTESÍTÉST KÉREK HA MEGJELENIK</div>
                   </div>
                 </div>
-                {isOwn&&<button onClick={()=>removeWish(w.id)} style={{ background:"transparent", border:`1px solid ${ACC.red}25`, color:ACC.red, padding:"5px 11px", borderRadius:4, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:10, fontWeight:600 }}>Töröl</button>}
+                {isOwn&&<button style={{ background:"transparent",border:`1px solid ${ACC.red}25`,color:ACC.red,padding:"5px 11px",borderRadius:4,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:10,fontWeight:600 }}>Töröl</button>}
               </div>
             ))}
-            {wishlist.length===0&&<p style={{ color:T.faint, fontFamily:"'Manrope',sans-serif", fontSize:13, textAlign:"center", padding:"40px 0" }}>{isOwn?"Még nincs kívánságod. Adj hozzá parfümöket fentebb!":"Ennek a felhasználónak nincs nyilvános kívánlistája."}</p>}
+            {wishlist.length===0&&<p style={{ color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:13,textAlign:"center",padding:"40px 0" }}>{isOwn?"Még nincs kívánságod. Adj hozzá parfümöket fentebb!":"Ennek a felhasználónak nincs nyilvános kívánlistája."}</p>}
           </div>
         </div>
       )}
 
       {showRM&&(
         <Modal onClose={()=>setShowRM(false)}>
-          <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:28, color:T.heading, fontWeight:400, marginBottom:22 }}>Értékelés írása</h2>
+          <h2 style={{ fontFamily:"'Playfair Display',serif",fontSize:28,color:T.heading,fontWeight:400,marginBottom:22 }}>Értékelés írása</h2>
           <div style={{ marginBottom:22 }}><Stars v={myRating} size={30} interactive onChange={setMyRating}/></div>
           <textarea value={myText} onChange={e=>setMyText(e.target.value)} rows={4} placeholder="Írd le tapasztalatod..."
-            style={{ background:B.paper, border:`1px solid ${B.border}`, color:T.body, padding:"13px 15px", borderRadius:7, width:"100%", fontFamily:"'Manrope',sans-serif", fontSize:14, resize:"vertical", outline:"none", boxSizing:"border-box", marginBottom:18, lineHeight:1.7 }}/>
-          <button onClick={submitReview} style={{ background:ACC.ink, border:"none", color:B.canvas, padding:"14px", width:"100%", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:14, fontWeight:700 }}>Értékelés küldése →</button>
+            style={{ background:B.paper,border:`1px solid ${B.border}`,color:T.body,padding:"13px 15px",borderRadius:7,width:"100%",fontFamily:"'Manrope',sans-serif",fontSize:14,resize:"vertical",outline:"none",boxSizing:"border-box",marginBottom:18,lineHeight:1.7 }}/>
+          <button onClick={()=>setShowRM(false)} style={{ background:ACC.ink,border:"none",color:B.canvas,padding:"14px",width:"100%",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:700 }}>Értékelés küldése →</button>
         </Modal>
       )}
     </div>
   );
 }
 
-// ─── MESSAGES ────────────────────────────────────────────────────────────────
+// ─── MESSAGES (simplified) ────────────────────────────────────────────────────
 function Messages({ curProfile, activeChatWith, setActiveChatWith }) {
-  const [convs, setConvs]           = useState([]);
-  const [partnerProfiles, setPP]    = useState({});
-  const [chat, setChat]             = useState([]);
-  const [newMsg, setNewMsg]         = useState("");
-  const [mobileView, setMobileView] = useState("list");
-  const bottomRef = useRef(null);
-
-  useEffect(()=>{
-    if(!curProfile?.id)return;
-    loadConvs();
-    const sub=supabase.channel("msg-rt-"+curProfile.id)
-      .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:`to_user=eq.${curProfile.id}`},()=>{
-        if(activeChatWith) loadChat(activeChatWith); else loadConvs();
-      }).subscribe();
-    return ()=>supabase.removeChannel(sub);
-  },[curProfile?.id,activeChatWith]);
-
-  useEffect(()=>{if(activeChatWith)loadChat(activeChatWith);},[activeChatWith]);
+  const [chat,setChat]=useState([]); const [newMsg,setNewMsg]=useState("");
+  const bottomRef=useRef(null);
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[chat]);
 
-  async function loadConvs() {
-    const {data}=await supabase.from("messages").select("*").or(`from_user.eq.${curProfile.id},to_user.eq.${curProfile.id}`).order("created_at",{ascending:false});
-    if(!data)return;
-    const seen=new Set(), cs=[];
-    data.forEach(m=>{const p=m.from_user===curProfile.id?m.to_user:m.from_user;if(!seen.has(p)){seen.add(p);cs.push({partnerId:p,lastMsg:m});}});
-    setConvs(cs);
-    const ids=[...seen];
-    if(ids.length){const {data:pd}=await supabase.from("profiles").select("*").in("id",ids);if(pd){const m={};pd.forEach(p=>{m[p.id]=p;});setPP(m);}}
-  }
-
-  async function loadChat(pid) {
-    const {data}=await supabase.from("messages").select("*")
-      .or(`and(from_user.eq.${curProfile.id},to_user.eq.${pid}),and(from_user.eq.${pid},to_user.eq.${curProfile.id})`)
-      .order("created_at",{ascending:true});
-    setChat(data||[]);
-    await supabase.from("messages").update({read:true,read_at:new Date().toISOString()}).eq("to_user",curProfile.id).eq("from_user",pid).eq("read",false);
-    loadConvs();
-  }
-
-  async function send() {
-    const txt=newMsg.trim();if(!txt||!activeChatWith)return;setNewMsg("");
-    await supabase.from("messages").insert({from_user:curProfile.id,to_user:activeChatWith,text:txt,read:false,delivered:true});
-    loadChat(activeChatWith);
-  }
-
-  const totalUnread=convs.filter(c=>c.lastMsg.to_user===curProfile.id&&!c.lastMsg.read).length;
-  const activePartner=partnerProfiles[activeChatWith];
-
   return (
-    <div style={{ paddingTop:62, height:"100dvh", display:"flex", overflow:"hidden", background:B.canvas }}>
-      {/* List pane */}
-      <div style={{ width:300, borderRight:`1px solid ${B.border}`, display:"flex", flexDirection:"column", background:B.paper, flexShrink:0 }}>
-        <div style={{ padding:"20px", borderBottom:`1px solid ${B.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <p style={{ fontFamily:"'Playfair Display',serif", fontSize:22, color:T.heading }}>Üzenetek</p>
-          {totalUnread>0&&<span style={{ background:ACC.gold, borderRadius:12, padding:"2px 9px", fontFamily:"'Manrope',sans-serif", fontSize:10, color:"#fff", fontWeight:700 }}>{totalUnread}</span>}
+    <div style={{ paddingTop:62,height:"100dvh",display:"flex",overflow:"hidden",background:B.canvas }}>
+      <div style={{ width:300,borderRight:`1px solid ${B.border}`,display:"flex",flexDirection:"column",background:B.paper }}>
+        <div style={{ padding:"20px",borderBottom:`1px solid ${B.border}` }}>
+          <p style={{ fontFamily:"'Playfair Display',serif",fontSize:22,color:T.heading }}>Üzenetek</p>
         </div>
-        <div style={{ overflowY:"auto", flex:1 }}>
-          {convs.length===0&&<p style={{ padding:"28px 20px", color:T.faint, fontFamily:"'Manrope',sans-serif", fontSize:12 }}>Még nincs üzeneted.</p>}
-          {convs.map(({partnerId,lastMsg})=>{
-            const u=partnerProfiles[partnerId];
-            const active=activeChatWith===partnerId, isUnread=lastMsg.to_user===curProfile.id&&!lastMsg.read;
-            return (
-              <div key={partnerId} onClick={()=>{setActiveChatWith(partnerId);setMobileView("chat");}}
-                style={{ padding:"14px 20px", cursor:"pointer", display:"flex", gap:12, alignItems:"center", background:active?B.warm:isUnread?"#faf5e8":"transparent", borderLeft:active?`3px solid ${ACC.gold}`:isUnread?`3px solid ${ACC.gold}55`:"3px solid transparent", borderBottom:`1px solid ${B.border}` }}>
-                <Ava u={u||{name:"?"}} size={40}/>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                    <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:13, color:isUnread?T.heading:T.muted, fontWeight:isUnread?700:500 }}>{u?.name||"…"}</span>
-                    <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:isUnread?ACC.gold:T.faint }}>{relTime(lastMsg.created_at)}</span>
-                  </div>
-                  <div style={{ fontSize:12, color:isUnread?T.muted:T.faint, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:isUnread?600:400, fontFamily:"'Manrope',sans-serif" }}>
-                    {lastMsg.from_user===curProfile.id?"Te: ":""}{lastMsg.text}
-                  </div>
-                </div>
-                {isUnread&&<div style={{ background:ACC.gold, borderRadius:"50%", width:8, height:8, flexShrink:0 }}/>}
-              </div>
-            );
-          })}
+        <div style={{ flex:1,display:"flex",alignItems:"center",justifyContent:"center" }}>
+          <p style={{ color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:12,textAlign:"center",padding:20 }}>Üzeneteid megjelennek itt a valódi alkalmazásban.</p>
         </div>
       </div>
-      {/* Chat pane */}
-      <div style={{ flex:1, display:"flex", flexDirection:"column", background:B.canvas, minWidth:0 }}>
-        {activeChatWith ? (
-          <>
-            <div style={{ padding:"14px 20px", borderBottom:`1px solid ${B.border}`, display:"flex", alignItems:"center", gap:12, background:B.paper, flexShrink:0 }}>
-              <Ava u={activePartner||{name:"?"}} size={40}/>
-              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:19, color:T.heading, flex:1 }}>{activePartner?.name||"…"}</div>
-              {activePartner&&(isAdmin(activePartner)?<RankBadge isAdmin/>:<RankBadge sales={activePartner.sales||0}/>)}
-            </div>
-            <div style={{ flex:1, overflowY:"auto", padding:"20px 16px", display:"flex", flexDirection:"column", gap:8 }}>
-              {chat.map((m,i)=>{
-                const me=m.from_user===curProfile.id;
-                return (
-                  <div key={m.id||i} style={{ display:"flex", justifyContent:me?"flex-end":"flex-start" }}>
-                    <div style={{ maxWidth:"78%", padding:"11px 15px", background:me?B.warm:B.paper, border:`1px solid ${me?B.borderDk:B.border}`, borderRadius:me?"16px 16px 4px 16px":"16px 16px 16px 4px" }}>
-                      <p style={{ color:T.body, fontSize:14, lineHeight:1.6, margin:0, fontFamily:"'Manrope',sans-serif" }}>{m.text}</p>
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:5, marginTop:5 }}>
-                        <span style={{ color:T.faint, fontSize:10, fontFamily:"'Manrope',sans-serif" }}>{new Date(m.created_at).toLocaleTimeString("hu-HU",{hour:"2-digit",minute:"2-digit"})}</span>
-                        {me&&<span style={{ fontSize:10, color:m.read?ACC.gold:T.faint }}>✓✓</span>}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={bottomRef}/>
-            </div>
-            <div style={{ padding:"12px 16px", borderTop:`1px solid ${B.border}`, display:"flex", gap:10, background:B.paper, flexShrink:0 }}>
-              <input value={newMsg} onChange={e=>setNewMsg(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Írj üzenetet..."
-                style={{ flex:1, background:B.canvas, border:`1px solid ${B.border}`, color:T.body, padding:"12px 15px", borderRadius:8, fontFamily:"'Manrope',sans-serif", fontSize:14, outline:"none" }}/>
-              <button onClick={send} style={{ background:ACC.ink, border:"none", color:B.canvas, padding:"12px 18px", borderRadius:8, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontWeight:700, fontSize:16 }}>→</button>
-            </div>
-          </>
-        ) : (
-          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16 }}>
-            <span style={{ fontSize:48, opacity:.1 }}>✉</span>
-            <p style={{ color:T.faint, fontFamily:"'Manrope',sans-serif", fontSize:13 }}>Válassz egy beszélgetést</p>
-          </div>
-        )}
+      <div style={{ flex:1,display:"flex",flexDirection:"column" }}>
+        <div style={{ flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16 }}>
+          <span style={{ fontSize:48,opacity:.1 }}>✉</span>
+          <p style={{ color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:13 }}>Válassz egy beszélgetést</p>
+        </div>
+        <div style={{ padding:"12px 16px",borderTop:`1px solid ${B.border}`,display:"flex",gap:10,background:B.paper }}>
+          <input value={newMsg} onChange={e=>setNewMsg(e.target.value)} placeholder="Írj üzenetet..."
+            style={{ flex:1,background:B.canvas,border:`1px solid ${B.border}`,color:T.body,padding:"12px 15px",borderRadius:8,fontFamily:"'Manrope',sans-serif",fontSize:14,outline:"none" }}/>
+          <button onClick={()=>setNewMsg("")} style={{ background:ACC.ink,border:"none",color:B.canvas,padding:"12px 18px",borderRadius:8,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontWeight:700,fontSize:16 }}>→</button>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── SELL ────────────────────────────────────────────────────────────────────
+// ─── SELL FIELD ───────────────────────────────────────────────────────────────
 function SellField({ label, error, children }) {
   return (
     <div style={{ marginBottom:22 }}>
-      <div style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:error?ACC.red:T.faint, letterSpacing:2, marginBottom:8, textTransform:"uppercase", fontWeight:700 }}>
-        {label}{error&&<span style={{ marginLeft:8, textTransform:"none", letterSpacing:0, fontSize:11, fontWeight:500 }}>— {error}</span>}
+      <div style={{ fontFamily:"'Manrope',sans-serif",fontSize:10,color:error?ACC.red:T.faint,letterSpacing:2,marginBottom:8,textTransform:"uppercase",fontWeight:700 }}>
+        {label}{error&&<span style={{ marginLeft:8,textTransform:"none",letterSpacing:0,fontSize:11,fontWeight:500 }}>— {error}</span>}
       </div>
       {children}
     </div>
   );
 }
 
+// ─── SELL ─────────────────────────────────────────────────────────────────────
 function Sell({ curProfile, go, setListings, showToast }) {
   const [sType,setSType]=useState("sell"); const [sListingType,setSLT]=useState("full");
   const [sSize,setSSize]=useState("100ml"); const [sFill,setSFill]=useState(90);
   const [sCondition,setSCond]=useState("excellent"); const [sDecantMl,setSDecantMl]=useState("5");
   const [sCategory,setSCategory]=useState("woody"); const [sIcon,setSIcon]=useState("✨");
   const [sSwap,setSSwap]=useState(false); const [loading,setLoading]=useState(false); const [errors,setErrors]=useState({});
-  const refBrand=useRef(null),refName=useRef(null),refPrice=useRef(null),refDesc=useRef(null),refTags=useRef(null);
+  const refBrand=useRef(null); const refName=useRef(null); const refPrice=useRef(null); const refDesc=useRef(null); const refTags=useRef(null);
 
-  const inp={ background:B.paper, border:`1px solid ${B.border}`, color:T.body, padding:"13px 15px", borderRadius:7, fontFamily:"'Manrope',sans-serif", fontSize:16, width:"100%", boxSizing:"border-box", outline:"none" };
-  const errB={ border:`1px solid ${ACC.red}55` };
+  const inp={
+    background:B.paper,border:`1px solid ${B.border}`,color:T.body,
+    padding:"13px 15px",borderRadius:7,fontFamily:"'Manrope',sans-serif",
+    fontSize:16,width:"100%",boxSizing:"border-box",outline:"none",
+  };
+  const errB={border:`1px solid ${ACC.red}55`};
 
-  async function submit() {
-    if(!curProfile){go("login");return;}
-    const brand=refBrand.current?.value?.trim()||"", name=refName.current?.value?.trim()||"";
-    const price=refPrice.current?.value||"", desc=refDesc.current?.value?.trim()||"";
-    const tags=refTags.current?.value||"";
+  function submit() {
+    const brand=refBrand.current?.value?.trim()||""; const name=refName.current?.value?.trim()||"";
+    const price=refPrice.current?.value||""; const desc=refDesc.current?.value?.trim()||"";
     const e={};
-    if(!brand)e.brand="Kötelező";if(!name)e.name="Kötelező";
-    if(!price||Number(price)<=0)e.price="Adj meg érvényes árat";if(!desc)e.description="Kötelező";
+    if(!brand)e.brand="Kötelező"; if(!name)e.name="Kötelező";
+    if(!price||Number(price)<=0)e.price="Adj meg érvényes árat"; if(!desc)e.description="Kötelező";
     if(Object.keys(e).length>0){setErrors(e);showToast("Töltsd ki a kötelező mezőket!","error");return;}
-    setErrors({});setLoading(true);
-    const isDec=sListingType==="decant";
-    const {data,error}=await supabase.from("listings").insert({
-      user_id:curProfile.id, type:sType, listing_type:sListingType, brand, name,
-      size:isDec?null:sSize, fill:(!isDec&&sType==="sell")?Number(sFill):null,
-      condition:(!isDec&&sType==="sell")?sCondition:null,
-      price:Number(price), decant_ml:isDec?Number(sDecantMl):null,
-      description:desc, category:sCategory,
-      tags:tags.split(",").map(t=>t.trim()).filter(Boolean),
-      icon:sIcon, views:0, favorites:0, status:"active", swap_ok:sSwap, pinned:false,
-    }).select().single();
-    setLoading(false);
-    if(error){showToast("Hiba: "+error.message,"error");return;}
-    setListings(p=>[data,...p]);
     showToast("Hirdetés sikeresen közzétéve!","success");
     setTimeout(()=>go("market"),900);
   }
 
   return (
-    <div style={{ paddingTop:62, maxWidth:700, margin:"0 auto", padding:"80px 24px 100px", background:B.canvas }}>
-      <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:10, color:ACC.gold, letterSpacing:3, fontWeight:700, marginBottom:8, textTransform:"uppercase" }}>ÚJ HIRDETÉS</p>
-      <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:44, color:T.heading, fontWeight:400, marginBottom:10 }}>Hirdetés feladása</h1>
-      <p style={{ color:T.faint, fontSize:13, marginBottom:48, fontFamily:"'Manrope',sans-serif" }}>Minden mező kitöltése gyorsabb eladást hoz.</p>
+    <div style={{ paddingTop:62,maxWidth:700,margin:"0 auto",padding:"80px 24px 100px",background:B.canvas }}>
+      <p style={{ fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8,textTransform:"uppercase" }}>ÚJ HIRDETÉS</p>
+      <h1 style={{ fontFamily:"'Playfair Display',serif",fontSize:44,color:T.heading,fontWeight:400,marginBottom:10 }}>Hirdetés feladása</h1>
+      <p style={{ color:T.faint,fontSize:13,marginBottom:48,fontFamily:"'Manrope',sans-serif" }}>Minden mező kitöltése gyorsabb eladást hoz.</p>
 
       <SellField label="Mit szeretnél?">
-        <div style={{ display:"flex", gap:8 }}>
+        <div style={{ display:"flex",gap:8 }}>
           {[["sell","🏷 Eladom"],["buy","🔍 Keresem"]].map(([t,l])=>(
-            <button key={t} onClick={()=>setSType(t)} style={{ flex:1, background:sType===t?ACC.ink:"transparent", border:`1px solid ${sType===t?ACC.ink:B.borderDk}`, color:sType===t?B.canvas:T.muted, padding:"13px", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:13, fontWeight:sType===t?700:500, transition:"all .15s" }}>{l}</button>
+            <button key={t} onClick={()=>setSType(t)} style={{ flex:1,background:sType===t?ACC.ink:"transparent",border:`1px solid ${sType===t?ACC.ink:B.borderDk}`,color:sType===t?B.canvas:T.muted,padding:"13px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:13,fontWeight:sType===t?700:500,transition:"all .15s" }}>{l}</button>
           ))}
         </div>
       </SellField>
 
       <SellField label="Hirdetés típusa">
-        <div style={{ display:"flex", gap:8 }}>
+        <div style={{ display:"flex",gap:8 }}>
           {[["full","🫙 Teljes üveg"],["decant","💧 Dekant"]].map(([t,l])=>(
-            <button key={t} onClick={()=>setSLT(t)} style={{ flex:1, background:sListingType===t?ACC.ink:"transparent", border:`1px solid ${sListingType===t?ACC.ink:B.borderDk}`, color:sListingType===t?B.canvas:T.muted, padding:"13px", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:13, fontWeight:sListingType===t?700:500, transition:"all .15s" }}>{l}</button>
+            <button key={t} onClick={()=>setSLT(t)} style={{ flex:1,background:sListingType===t?ACC.ink:"transparent",border:`1px solid ${sListingType===t?ACC.ink:B.borderDk}`,color:sListingType===t?B.canvas:T.muted,padding:"13px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:13,fontWeight:sListingType===t?700:500,transition:"all .15s" }}>{l}</button>
           ))}
         </div>
       </SellField>
 
       <SellField label="Márka *" error={errors.brand}>
-        <input ref={refBrand} defaultValue="" placeholder="pl. Creed" autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck="false" style={{...inp,...(errors.brand?errB:{})}}/>
+        <input ref={refBrand} defaultValue="" placeholder="pl. Creed" autoComplete="off" style={{...inp,...(errors.brand?errB:{})}}/>
       </SellField>
       <SellField label="Parfüm neve *" error={errors.name}>
-        <input ref={refName} defaultValue="" placeholder="pl. Aventus" autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck="false" style={{...inp,...(errors.name?errB:{})}}/>
+        <input ref={refName} defaultValue="" placeholder="pl. Aventus" autoComplete="off" style={{...inp,...(errors.name?errB:{})}}/>
       </SellField>
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
         {sListingType==="full"&&(
           <SellField label="Méret">
             <select value={sSize} onChange={e=>setSSize(e.target.value)} style={{...inp,cursor:"pointer"}}>
@@ -1246,7 +1199,9 @@ function Sell({ curProfile, go, setListings, showToast }) {
       </div>
 
       {sListingType==="full"&&sType==="sell"&&(
-        <SellField label="Töltöttségi szint"><BottleSlider value={sFill} onChange={setSFill}/></SellField>
+        <SellField label="Töltöttségi szint">
+          <BottleSlider value={sFill} onChange={setSFill}/>
+        </SellField>
       )}
 
       <SellField label="Ár (Ft) *" error={errors.price}>
@@ -1256,139 +1211,91 @@ function Sell({ curProfile, go, setListings, showToast }) {
         <textarea ref={refDesc} defaultValue="" rows={5} placeholder="Batch, állapot részletei, csere lehetőség..." style={{...inp,resize:"vertical",...(errors.description?errB:{})}}/>
       </SellField>
       <SellField label="Tagek (vesszővel)">
-        <input ref={refTags} defaultValue="" placeholder="creed, niche, woody" autoComplete="off" autoCorrect="off" spellCheck="false" style={inp}/>
+        <input ref={refTags} defaultValue="" placeholder="creed, niche, woody" autoComplete="off" style={inp}/>
       </SellField>
 
       <div style={{ marginBottom:24 }}>
-        <div onClick={()=>setSSwap(v=>!v)} style={{ display:"flex", gap:14, alignItems:"center", cursor:"pointer" }}>
-          <div style={{ width:22, height:22, borderRadius:5, flexShrink:0, background:sSwap?"#f5f0fb":"transparent", border:`1.5px solid ${sSwap?"#7a5ab0":B.borderDk}`, display:"flex", alignItems:"center", justifyContent:"center", transition:"all .15s" }}>
-            {sSwap&&<span style={{ color:"#7a5ab0", fontSize:13, fontWeight:700 }}>✓</span>}
+        <div onClick={()=>setSSwap(v=>!v)} style={{ display:"flex",gap:14,alignItems:"center",cursor:"pointer" }}>
+          <div style={{ width:22,height:22,borderRadius:5,flexShrink:0,background:sSwap?"#f5f0fb":"transparent",border:`1.5px solid ${sSwap?"#7a5ab0":B.borderDk}`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s" }}>
+            {sSwap&&<span style={{ color:"#7a5ab0",fontSize:13,fontWeight:700 }}>✓</span>}
           </div>
           <div>
-            <div style={{ fontFamily:"'Manrope',sans-serif", fontSize:13, color:sSwap?"#7a5ab0":T.body, fontWeight:600 }}>Csere is érdekel</div>
-            <div style={{ fontFamily:"'Manrope',sans-serif", fontSize:11, color:T.faint, marginTop:2 }}>Más parfümre is cserélném</div>
+            <div style={{ fontFamily:"'Manrope',sans-serif",fontSize:13,color:sSwap?"#7a5ab0":T.body,fontWeight:600 }}>Csere is érdekel</div>
+            <div style={{ fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint,marginTop:2 }}>Más parfümre is cserélném</div>
           </div>
         </div>
       </div>
 
       <SellField label="Ikon">
-        <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+        <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
           {ICONS.map(ic=>(
-            <button key={ic} onClick={()=>setSIcon(ic)} style={{ background:sIcon===ic?ACC.goldPale:B.paper, border:`1px solid ${sIcon===ic?ACC.gold:B.border}`, borderRadius:7, padding:"8px 12px", cursor:"pointer", fontSize:20, transition:"all .15s" }}>{ic}</button>
+            <button key={ic} onClick={()=>setSIcon(ic)} style={{ background:sIcon===ic?ACC.goldPale:B.paper,border:`1px solid ${sIcon===ic?ACC.gold:B.border}`,borderRadius:7,padding:"8px 12px",cursor:"pointer",fontSize:20,transition:"all .15s" }}>{ic}</button>
           ))}
         </div>
       </SellField>
 
-      <button onClick={submit} disabled={loading} style={{ background:ACC.ink, border:"none", color:B.canvas, padding:"18px", width:"100%", borderRadius:8, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:15, fontWeight:700, marginTop:12, opacity:loading?.6:1, letterSpacing:.3 }}>
+      <button onClick={submit} disabled={loading} style={{ background:ACC.ink,border:"none",color:B.canvas,padding:"18px",width:"100%",borderRadius:8,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:15,fontWeight:700,marginTop:12,opacity:loading?.6:1,letterSpacing:.3 }}>
         {loading?"Feltöltés...":"Hirdetés közzététele →"}
       </button>
     </div>
   );
 }
 
-// ─── GUEST WALL ──────────────────────────────────────────────────────────────
+// ─── GUEST WALL ───────────────────────────────────────────────────────────────
 function GuestWall({ go }) {
   return (
-    <div style={{ paddingTop:62, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:B.canvas }}>
-      <div style={{ border:`1px solid ${B.border}`, borderRadius:12, padding:"64px 52px", maxWidth:460, textAlign:"center", background:B.paper, boxShadow:"0 8px 40px rgba(0,0,0,.06)" }}>
-        <div style={{ fontSize:48, marginBottom:22 }}>🔒</div>
-        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:32, color:T.heading, fontWeight:400, marginBottom:14 }}>Belépés szükséges</h2>
-        <p style={{ color:T.muted, fontFamily:"'Manrope',sans-serif", fontSize:13, lineHeight:2, marginBottom:36 }}>Hirdetés feladásához be kell jelentkezned.<br/>A piacot vendégként is böngészheted.</p>
-        <button onClick={()=>go("login")} style={{ background:ACC.ink, border:"none", color:B.canvas, padding:"14px 40px", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:14, fontWeight:700, marginBottom:12, width:"100%" }}>Belépés / Regisztráció →</button>
-        <button onClick={()=>go("market")} style={{ background:"transparent", border:`1px solid ${B.border}`, color:T.muted, padding:"12px 40px", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:600, width:"100%" }}>Vissza a piacra</button>
+    <div style={{ paddingTop:62,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.canvas }}>
+      <div style={{ border:`1px solid ${B.border}`,borderRadius:12,padding:"64px 52px",maxWidth:460,textAlign:"center",background:B.paper,boxShadow:"0 8px 40px rgba(0,0,0,.06)" }}>
+        <div style={{ fontSize:48,marginBottom:22 }}>🔒</div>
+        <h2 style={{ fontFamily:"'Playfair Display',serif",fontSize:32,color:T.heading,fontWeight:400,marginBottom:14 }}>Belépés szükséges</h2>
+        <p style={{ color:T.muted,fontFamily:"'Manrope',sans-serif",fontSize:13,lineHeight:2,marginBottom:36 }}>Hirdetés feladásához be kell jelentkezned.<br/>A piacot vendégként is böngészheted.</p>
+        <button onClick={()=>go("login")} style={{ background:ACC.ink,border:"none",color:B.canvas,padding:"14px 40px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:700,marginBottom:12,width:"100%" }}>Belépés / Regisztráció →</button>
+        <button onClick={()=>go("market")} style={{ background:"transparent",border:`1px solid ${B.border}`,color:T.muted,padding:"12px 40px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600,width:"100%" }}>Vissza a piacra</button>
       </div>
     </div>
   );
 }
 
-// ─── LOGIN ───────────────────────────────────────────────────────────────────
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
 function Login({ go, showToast }) {
   const [mode,setMode]=useState("login"); const [email,setEmail]=useState(""); const [pass,setPass]=useState("");
-  const [passConfirm,setPCfm]=useState(""); const [name,setName]=useState(""); const [loc,setLoc]=useState("");
-  const [tos,setTos]=useState(false); const [loading,setLoading]=useState(false); const [regState,setRegState]=useState("idle");
+  const [name,setName]=useState(""); const [loc,setLoc]=useState(""); const [tos,setTos]=useState(false); const [loading,setLoading]=useState(false);
 
-  function ve(e){return/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);}
-
-  async function doLogin() {
-    if(!ve(email)){showToast("Adj meg érvényes email címet!","error");return;}
-    if(pass.length<6){showToast("A jelszónak legalább 6 karakter kell!","error");return;}
-    setLoading(true);
-    const {error}=await supabase.auth.signInWithPassword({email,password:pass});
-    setLoading(false);
-    if(error){
-      if(error.message.includes("Invalid login")||error.message.includes("invalid_credentials"))showToast("Hibás email cím vagy jelszó.","error");
-      else if(error.message.includes("Email not confirmed"))showToast("Erősítsd meg az email címed!","info");
-      else showToast(error.message,"error");
-    } else { go("home"); }
-  }
-
-  async function doRegister() {
-    if(!name.trim()){showToast("Add meg a felhasználóneved!","error");return;}
-    if(!ve(email)){showToast("Adj meg érvényes email címet!","error");return;}
-    if(pass.length<6){showToast("A jelszónak legalább 6 karakter kell!","error");return;}
-    if(pass!==passConfirm){showToast("A két jelszó nem egyezik!","error");return;}
-    if(!tos){showToast("El kell fogadnod az ÁSZF-et!","error");return;}
-    setLoading(true);
-    const {data:sd,error}=await supabase.auth.signUp({email,password:pass,options:{data:{name,location:loc}}});
-    if(error){setLoading(false);showToast(error.message.includes("already registered")?"Ez az email már regisztrált!":error.message,"error");return;}
-    if(sd.user){
-      await supabase.from("profiles").upsert({id:sd.user.id,name:name.trim(),location:loc.trim(),email,bio:"",verified:false,rating:0,rating_count:0,sales:0,banned:false});
-    }
-    setLoading(false);
-    if(sd.session){ go("home"); } else { setRegState("confirm"); }
-  }
-
-  const inp={ background:B.paper, border:`1px solid ${B.border}`, color:T.body, padding:"13px 15px", borderRadius:7, fontFamily:"'Manrope',sans-serif", fontSize:16, width:"100%", boxSizing:"border-box", outline:"none", marginBottom:12 };
-  const lbl={ fontFamily:"'Manrope',sans-serif", fontSize:10, color:T.faint, letterSpacing:2, display:"block", marginBottom:6, textTransform:"uppercase", fontWeight:700 };
-
-  if(regState==="confirm")return(
-    <div style={{ paddingTop:62, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:B.canvas }}>
-      <div style={{ border:`1px solid ${B.border}`, borderRadius:12, padding:"56px 48px", maxWidth:440, textAlign:"center", background:B.paper, boxShadow:"0 8px 40px rgba(0,0,0,.06)" }}>
-        <div style={{ fontSize:48, marginBottom:22 }}>✉</div>
-        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:30, color:T.heading, fontWeight:400, marginBottom:16 }}>Erősítsd meg az email címed</h2>
-        <p style={{ color:T.muted, fontFamily:"'Manrope',sans-serif", fontSize:13, lineHeight:2, marginBottom:32 }}>Küldtünk egy megerősítő linket ide:<br/><span style={{color:ACC.gold}}>{email}</span><br/><br/>Klikkelj a linkre, majd lépj be!</p>
-        <button onClick={()=>{setMode("login");setRegState("idle");}} style={{ background:ACC.ink, border:"none", color:B.canvas, padding:"14px", width:"100%", borderRadius:7, cursor:"pointer", fontFamily:"'Manrope',sans-serif", fontSize:14, fontWeight:700, marginBottom:12 }}>Bejelentkezéshez →</button>
-      </div>
-    </div>
-  );
+  const inp={background:B.paper,border:`1px solid ${B.border}`,color:T.body,padding:"13px 15px",borderRadius:7,fontFamily:"'Manrope',sans-serif",fontSize:16,width:"100%",boxSizing:"border-box",outline:"none",marginBottom:12};
+  const lbl={fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:2,display:"block",marginBottom:6,textTransform:"uppercase",fontWeight:700};
 
   return (
-    <div style={{ paddingTop:62, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:"80px 24px", background:B.canvas }}>
-      <div style={{ border:`1px solid ${B.border}`, borderRadius:12, padding:"56px 48px", width:"100%", maxWidth:440, boxShadow:"0 8px 40px rgba(0,0,0,.06)", background:B.paper }}>
-        <div style={{ textAlign:"center", marginBottom:40 }}>
-          <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:36, color:T.heading, fontWeight:400, marginBottom:4 }}>{mode==="login"?"Belépés":"Regisztráció"}</h2>
-          <p style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, color:T.faint }}>SCENTRADE · Magyar Parfüm Közösség</p>
+    <div style={{ paddingTop:62,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"80px 24px",background:B.canvas }}>
+      <div style={{ border:`1px solid ${B.border}`,borderRadius:12,padding:"56px 48px",width:"100%",maxWidth:440,boxShadow:"0 8px 40px rgba(0,0,0,.06)",background:B.paper }}>
+        <div style={{ textAlign:"center",marginBottom:40 }}>
+          <h2 style={{ fontFamily:"'Playfair Display',serif",fontSize:36,color:T.heading,fontWeight:400,marginBottom:4 }}>{mode==="login"?"Belépés":"Regisztráció"}</h2>
+          <p style={{ fontFamily:"'Manrope',sans-serif",fontSize:12,color:T.faint }}>SCENTRADE · Magyar Parfüm Közösség</p>
         </div>
-        <div style={{ display:"flex", background:B.warm, borderRadius:7, padding:3, marginBottom:32 }}>
+        <div style={{ display:"flex",background:B.warm,borderRadius:7,padding:3,marginBottom:32 }}>
           {[["login","Belépés"],["register","Regisztráció"]].map(([m,l])=>(
-            <button key={m} onClick={()=>{setMode(m);setPCfm("");}} style={{ flex:1, padding:"9px", borderRadius:5, border:"none", cursor:"pointer", background:mode===m?B.canvas:"transparent", color:mode===m?T.heading:T.faint, fontFamily:"'Manrope',sans-serif", fontSize:12, fontWeight:mode===m?700:500, transition:"all .15s", boxShadow:mode===m?"0 1px 4px rgba(0,0,0,.06)":"none" }}>{l}</button>
+            <button key={m} onClick={()=>setMode(m)} style={{ flex:1,padding:"9px",borderRadius:5,border:"none",cursor:"pointer",background:mode===m?B.canvas:"transparent",color:mode===m?T.heading:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:mode===m?700:500,transition:"all .15s",boxShadow:mode===m?"0 1px 4px rgba(0,0,0,.06)":"none" }}>{l}</button>
           ))}
         </div>
         {mode==="register"&&(<><label style={lbl}>Felhasználónév *</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="pl. illatmester_bp" style={inp}/><label style={lbl}>Helyszín</label><input value={loc} onChange={e=>setLoc(e.target.value)} placeholder="pl. Budapest" style={inp}/></>)}
         <label style={lbl}>Email cím *</label>
-        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="pelda@email.hu" type="email" autoComplete="email" style={inp}/>
+        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="pelda@email.hu" type="email" style={inp}/>
         <label style={lbl}>Jelszó *</label>
-        <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••••" type="password" onKeyDown={e=>e.key==="Enter"&&mode==="login"&&doLogin()} style={{...inp,marginBottom:mode==="register"?12:20}}/>
+        <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••••" type="password" style={{...inp,marginBottom:mode==="register"?12:20}}/>
         {mode==="register"&&(
-          <>
-            <label style={lbl}>Jelszó mégegyszer *</label>
-            <input value={passConfirm} onChange={e=>setPCfm(e.target.value)} placeholder="••••••••" type="password" onKeyDown={e=>e.key==="Enter"&&doRegister()} style={{...inp,border:`1px solid ${passConfirm&&passConfirm!==pass?ACC.red+"55":B.border}`}}/>
-            {passConfirm&&passConfirm!==pass&&<p style={{ color:ACC.red, fontFamily:"'Manrope',sans-serif", fontSize:11, marginTop:-8, marginBottom:12 }}>A jelszavak nem egyeznek</p>}
-            <div style={{ marginTop:8, marginBottom:24 }}>
-              <label style={{ display:"flex", gap:12, alignItems:"flex-start", cursor:"pointer" }}>
-                <div onClick={()=>setTos(v=>!v)} style={{ width:20, height:20, borderRadius:4, flexShrink:0, marginTop:1, background:tos?ACC.goldPale:"transparent", border:`1.5px solid ${tos?ACC.gold:B.borderDk}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", transition:"all .15s" }}>
-                  {tos&&<span style={{ color:ACC.gold, fontSize:12, fontWeight:700 }}>✓</span>}
-                </div>
-                <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:12, color:T.muted, lineHeight:1.7 }}>Elfogadom az <span style={{ color:ACC.gold, textDecoration:"underline", cursor:"pointer" }}>ÁSZF</span>-t és az <span style={{ color:ACC.gold, textDecoration:"underline", cursor:"pointer" }}>Adatkezelési tájékoztatót</span>. *</span>
-              </label>
-            </div>
-          </>
+          <div style={{ marginBottom:24 }}>
+            <label style={{ display:"flex",gap:12,alignItems:"flex-start",cursor:"pointer" }}>
+              <div onClick={()=>setTos(v=>!v)} style={{ width:20,height:20,borderRadius:4,flexShrink:0,marginTop:1,background:tos?ACC.goldPale:"transparent",border:`1.5px solid ${tos?ACC.gold:B.borderDk}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .15s" }}>
+                {tos&&<span style={{ color:ACC.gold,fontSize:12,fontWeight:700 }}>✓</span>}
+              </div>
+              <span style={{ fontFamily:"'Manrope',sans-serif",fontSize:12,color:T.muted,lineHeight:1.7 }}>Elfogadom az <span style={{ color:ACC.gold,textDecoration:"underline",cursor:"pointer" }}>ÁSZF</span>-t és az <span style={{ color:ACC.gold,textDecoration:"underline",cursor:"pointer" }}>Adatkezelési tájékoztatót</span>. *</span>
+            </label>
+          </div>
         )}
-        <button onClick={mode==="login"?doLogin:doRegister} disabled={loading||(mode==="register"&&!tos)}
-          style={{ background:(mode==="register"&&!tos)?B.warm:ACC.ink, border:"none", color:(mode==="register"&&!tos)?T.faint:B.canvas, padding:"15px", width:"100%", borderRadius:7, cursor:(mode==="register"&&!tos)?"not-allowed":"pointer", fontFamily:"'Manrope',sans-serif", fontSize:14, fontWeight:700, marginBottom:16, marginTop:mode==="login"?0:0, opacity:loading?.6:1, transition:"all .2s", letterSpacing:.3 }}>
+        <button disabled={loading||(mode==="register"&&!tos)}
+          style={{ background:(mode==="register"&&!tos)?B.warm:ACC.ink,border:"none",color:(mode==="register"&&!tos)?T.faint:B.canvas,padding:"15px",width:"100%",borderRadius:7,cursor:(mode==="register"&&!tos)?"not-allowed":"pointer",fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:700,marginBottom:18,opacity:loading?.6:1,transition:"all .2s",letterSpacing:.3 }}>
           {loading?"...":mode==="login"?"Belépés →":"Regisztráció →"}
         </button>
-        <p style={{ color:T.faint, fontSize:11, fontFamily:"'Manrope',sans-serif", textAlign:"center", cursor:"pointer", letterSpacing:.5, fontWeight:600 }} onClick={()=>{setMode(mode==="login"?"register":"login");setPCfm("");}}>
+        <p style={{ color:T.faint,fontSize:11,fontFamily:"'Manrope',sans-serif",textAlign:"center",cursor:"pointer",letterSpacing:.5,fontWeight:600 }} onClick={()=>setMode(mode==="login"?"register":"login")}>
           {mode==="login"?"Még nincs fiókod? Regisztrálj":"Már van fiókod? Lépj be"}
         </p>
       </div>
@@ -1396,7 +1303,7 @@ function Login({ go, showToast }) {
   );
 }
 
-// ─── ROOT ────────────────────────────────────────────────────────────────────
+// ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const {user,profile,loading} = useAuth();
   const [page,setPage]         = useState("home");
@@ -1444,18 +1351,22 @@ export default function App() {
     setPage(p); window.scrollTo(0,0);
   }
 
+  function updateListing(id, fields) {
+    setListings(p=>p.map(l=>l.id===id?{...l,...fields}:l));
+  }
+
   const selListing  = listings.find(l=>l.id===selId);
   const profileUser = profileId ? (profiles[profileId]||null) : null;
   const allProfiles = profile ? {...profiles,[profile.id]:profile} : profiles;
 
   if(loading)return(
-    <div style={{ background:B.canvas, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <span style={{ color:ACC.gold, fontFamily:"'Playfair Display',serif", fontSize:26 }}>◈</span>
+    <div style={{ background:B.canvas,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <span style={{ color:ACC.gold,fontFamily:"'Playfair Display',serif",fontSize:26 }}>◈</span>
     </div>
   );
 
   return (
-    <div style={{ background:B.canvas, minHeight:"100vh", color:T.body }}>
+    <div style={{ background:B.canvas,minHeight:"100vh",color:T.body }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Manrope:wght@400;500;600;700&display=swap');
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -1479,7 +1390,7 @@ export default function App() {
 
       {page==="home"        && <Home go={go} listings={listings} profiles={allProfiles}/>}
       {page==="market"      && <Market listings={listings} profiles={allProfiles} go={go} setSelId={setSelId}/>}
-      {page==="detail"      && selListing && <Detail l={selListing} u={allProfiles[selListing.user_id]} curProfile={profile} go={go} setProfileId={setProfileId} setActiveChatWith={setACW} onStatusChange={(id,s)=>setListings(p=>p.map(l=>l.id===id?{...l,status:s}:l))} showToast={showToast}/>}
+      {page==="detail"      && selListing && <Detail l={selListing} u={allProfiles[selListing.user_id]} curProfile={profile} go={go} setProfileId={setProfileId} setActiveChatWith={setACW} onStatusChange={(id,s)=>updateListing(id,{status:s})} onListingUpdate={updateListing} showToast={showToast}/>}
       {page==="profile"     && profileUser && <Profile pu={profileUser} curProfile={profile} go={go} listings={listings} setActiveChatWith={setACW} onSignOut={signOut}/>}
       {page==="profile_own" && profile     && <Profile pu={profile} curProfile={profile} go={go} listings={listings} setActiveChatWith={setACW} onSignOut={signOut}/>}
       {page==="messages"    && profile     && <Messages curProfile={profile} activeChatWith={activeChatWith} setActiveChatWith={setACW}/>}
