@@ -4,6 +4,127 @@
 
 import { useState, useEffect, useRef } from "react";
 
+// ─── SUPABASE CLIENT (native fetch, no npm) ───────────────────────────────────
+const SUPA_URL = "https://godjaksujnzekgpbpywk.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvZGpha3N1am56ZWtncGJweXdrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MDA3MDYsImV4cCI6MjA5NDA3NjcwNn0.b5KmrSZ5sjePZCls-dEZ00yJI8gbMs0MNPI2RxetPC8";
+
+function makeSupabase(url, key) {
+  const baseH = { "apikey": key, "Content-Type": "application/json" };
+  function authH() {
+    const tok = supabase.auth._session?.access_token;
+    return tok ? { ...baseH, "Authorization": `Bearer ${tok}` } : { ...baseH, "Authorization": `Bearer ${key}` };
+  }
+  function rest(t) { return `${url}/rest/v1/${t}`; }
+
+  const auth = {
+    _session: null,
+    _listeners: [],
+    async getSession() {
+      try { const r = localStorage.getItem("sb-sess"); if(r) { this._session=JSON.parse(r); return {data:{session:this._session}}; } } catch(e){}
+      return {data:{session:null}};
+    },
+    onAuthStateChange(cb) {
+      this._listeners.push(cb);
+      return {data:{subscription:{unsubscribe:()=>{this._listeners=this._listeners.filter(l=>l!==cb);}}}};
+    },
+    _emit(ev,sess) {
+      this._session=sess;
+      try{ if(sess) localStorage.setItem("sb-sess",JSON.stringify(sess)); else localStorage.removeItem("sb-sess"); }catch(e){}
+      this._listeners.forEach(cb=>cb(ev,sess));
+    },
+    async signInWithPassword({email,password}) {
+      const r=await fetch(`${url}/auth/v1/token?grant_type=password`,{method:"POST",headers:{...baseH},body:JSON.stringify({email,password})});
+      const d=await r.json();
+      if(!r.ok) return {error:{message:d.error_description||d.msg||"Hiba"}};
+      this._emit("SIGNED_IN",d);
+      return {data:d,error:null};
+    },
+    async signUp({email,password,options}) {
+      const r=await fetch(`${url}/auth/v1/signup`,{method:"POST",headers:{...baseH},body:JSON.stringify({email,password,data:options?.data||{}})});
+      const d=await r.json();
+      if(!r.ok) return {data:{},error:{message:d.error_description||d.msg||"Hiba"}};
+      if(d.access_token) this._emit("SIGNED_IN",d);
+      return {data:{user:d.user||d,session:d.access_token?d:null},error:null};
+    },
+    async signOut() {
+      const tok=this._session?.access_token;
+      if(tok) try{ await fetch(`${url}/auth/v1/logout`,{method:"POST",headers:{...baseH,"Authorization":`Bearer ${tok}`}}); }catch(e){}
+      this._emit("SIGNED_OUT",null);
+    },
+  };
+
+  function from(table) {
+    let filters=[], sel="*", ord=null, lim=null, isSingle=false, isHead=false;
+    const b = {
+      select(c,o){sel=c||"*";isHead=o?.head||false;return b;},
+      eq(c,v){filters.push(`${c}=eq.${encodeURIComponent(v)}`);return b;},
+      neq(c,v){filters.push(`${c}=neq.${encodeURIComponent(v)}`);return b;},
+      ilike(c,v){filters.push(`${c}=ilike.${encodeURIComponent(v)}`);return b;},
+      in(c,vs){filters.push(`${c}=in.(${vs.map(v=>encodeURIComponent(v)).join(",")})`);return b;},
+      or(expr){filters.push(`or=(${expr})`);return b;},
+      order(c,o){ord=`${c}.${o?.ascending===false?"desc":"asc"}`;return b;},
+      limit(n){lim=n;return b;},
+      single(){isSingle=true;return b;},
+      async _fetch(method,body){
+        let qs=`select=${sel}`;
+        filters.forEach(f=>{qs+=`&${f}`;});
+        if(ord) qs+=`&order=${ord}`;
+        if(lim) qs+=`&limit=${lim}`;
+        const h={...authH()};
+        if(isHead||isSingle) h["Prefer"]="count=exact";
+        const r=await fetch(`${rest(table)}?${qs}`,{method,headers:h,body:body?JSON.stringify(body):undefined});
+        if(r.status===204) return {data:null,error:null,count:0};
+        const txt=await r.text();
+        let d=null; try{d=JSON.parse(txt);}catch(e){d=txt;}
+        if(!r.ok) return {data:null,error:{message:typeof d==="string"?d:JSON.stringify(d)}};
+        const cnt=parseInt(r.headers.get("content-range")?.split("/")[1]||"0");
+        if(isSingle&&Array.isArray(d)) d=d[0]||null;
+        return {data:d,error:null,count:cnt};
+      },
+      then(res,rej){return b._fetch("GET").then(res,rej);},
+      async insert(body){
+        const r=await fetch(`${rest(table)}`,{method:"POST",headers:{...authH(),"Prefer":"return=representation"},body:JSON.stringify(Array.isArray(body)?body:[body])});
+        const txt=await r.text(); let d=null; try{d=JSON.parse(txt);}catch(e){}
+        if(!r.ok) return {data:null,error:{message:typeof d==="string"?d:JSON.stringify(d)}};
+        const result=Array.isArray(d)?d[0]:d;
+        const ret={data:result,error:null};
+        ret.select=()=>({single:()=>({then:(res)=>res(ret)})});
+        return ret;
+      },
+      async update(body){
+        let qs=`select=${sel}`; filters.forEach(f=>{qs+=`&${f}`;});
+        const r=await fetch(`${rest(table)}?${qs}`,{method:"PATCH",headers:{...authH(),"Prefer":"return=representation"},body:JSON.stringify(body)});
+        const txt=await r.text(); let d=null; try{d=JSON.parse(txt);}catch(e){}
+        if(!r.ok) return {data:null,error:{message:typeof d==="string"?d:JSON.stringify(d)}};
+        return {data:Array.isArray(d)?d[0]:d,error:null};
+      },
+      async upsert(body){
+        const r=await fetch(`${rest(table)}`,{method:"POST",headers:{...authH(),"Prefer":"return=representation,resolution=merge-duplicates"},body:JSON.stringify(Array.isArray(body)?body:[body])});
+        const txt=await r.text(); let d=null; try{d=JSON.parse(txt);}catch(e){}
+        if(!r.ok) return {data:null,error:{message:typeof d==="string"?d:JSON.stringify(d)}};
+        return {data:Array.isArray(d)?d[0]:d,error:null};
+      },
+      async delete(){
+        let qs="select=id"; filters.forEach(f=>{qs+=`&${f}`;});
+        const r=await fetch(`${rest(table)}?${qs}`,{method:"DELETE",headers:authH()});
+        return {error:r.ok?null:{message:"Delete failed"}};
+      },
+    };
+    return b;
+  }
+
+  function channel(name){
+    const ch={on(){return ch;},subscribe(){return ch;}};
+    return ch;
+  }
+  function removeChannel(){}
+  function functions(){return {invoke:async()=>({})}}
+
+  return {auth,from,channel,removeChannel,functions:functions()};
+}
+
+const supabase = makeSupabase(SUPA_URL, SUPA_KEY);
+
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 const T = {
   heading: "#0f0e0d",
