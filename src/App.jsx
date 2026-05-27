@@ -60,6 +60,17 @@ function usePresence(userId) {
   return presenceMap;
 }
 
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return isMobile;
+}
+
 function OnlineBadge({presenceMap,userId,showLabel=false}) {
   if(!userId||!presenceMap)return null;
   const state=presenceMap[userId];
@@ -83,7 +94,7 @@ function Pill({text,bg=ACC.goldPale,col=ACC.gold}) {
   return<span style={{background:bg,color:col,fontSize:9,fontWeight:700,padding:"3px 9px",borderRadius:3,letterSpacing:1.2,textTransform:"uppercase",fontFamily:"'Manrope',sans-serif",whiteSpace:"nowrap",border:`1px solid ${col}25`}}>{text}</span>;
 }
 function Modal({onClose,children}) {
-  return(<div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(15,14,13,.55)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:B.canvas,border:`1px solid ${B.border}`,borderRadius:12,padding:"44px 40px",width:"100%",maxWidth:520,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,.18)"}}>{children}</div></div>);
+  return(<div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(15,14,13,.55)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}><div onClick={e=>e.stopPropagation()} style={{background:B.canvas,border:`1px solid ${B.border}`,borderRadius:12,padding:"clamp(24px,5vw,44px) clamp(20px,4vw,40px)",width:"100%",maxWidth:520,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,.18)"}}>{children}</div></div>);
 }
 function relTime(dateStr) {
   const d=Date.now()-new Date(dateStr).getTime();const m=Math.floor(d/60000),h=Math.floor(d/3600000),day=Math.floor(d/86400000);
@@ -180,32 +191,33 @@ const ICONS=["✨","🏺","🫙","🌸","🌿","🍂","☀️","🌑","🥀","�
 
 function Nav({profile,page,go,openLogin,unreadCount}) {
   const [scrolled,setScrolled]=useState(false);
+  const isMob=useIsMobile();
   useEffect(()=>{const fn=()=>setScrolled(window.scrollY>20);window.addEventListener("scroll",fn);return()=>window.removeEventListener("scroll",fn);},[]);
   return(
-    <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:100,height:62,background:scrolled?"rgba(250,248,244,.96)":B.canvas,backdropFilter:"blur(16px)",borderBottom:`1px solid ${scrolled?B.border:"transparent"}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 40px",transition:"border-color .3s,background .3s"}}>
-      <div onClick={()=>go("home")} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
-        <span style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:T.heading,letterSpacing:3}}>SCENTRADE</span>
-        <span style={{width:1,height:16,background:B.borderDk,margin:"0 4px"}}/>
-        <span style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:3}}>HU</span>
+    <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:100,height:62,background:scrolled?"rgba(250,248,244,.96)":B.canvas,backdropFilter:"blur(16px)",borderBottom:`1px solid ${scrolled?B.border:"transparent"}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:isMob?"0 16px":"0 40px",transition:"border-color .3s,background .3s"}}>
+      <div onClick={()=>go("home")} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontFamily:"'Playfair Display',serif",fontSize:isMob?18:22,fontWeight:700,color:T.heading,letterSpacing:isMob?2:3}}>SCENTRADE</span>
+        {!isMob&&<><span style={{width:1,height:16,background:B.borderDk,margin:"0 4px"}}/><span style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:3}}>HU</span></>}
       </div>
-      <div style={{display:"flex",gap:2,alignItems:"center"}}>
-        {[["home","Főoldal"],["market","Piac"]].map(([p,l])=>(
+      <div style={{display:"flex",gap:isMob?2:2,alignItems:"center"}}>
+        {!isMob&&[["home","Főoldal"],["market","Piac"]].map(([p,l])=>(
           <button key={p} onClick={()=>go(p)} style={{background:"transparent",border:"none",color:page===p?T.heading:T.muted,padding:"8px 14px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:page===p?700:500,borderBottom:page===p?`2px solid ${ACC.gold}`:"2px solid transparent",transition:"all .15s"}}>{l}</button>
         ))}
-        <button onClick={()=>go("sell")} style={{background:ACC.ink,border:"none",color:B.canvas,padding:"8px 18px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:700,marginLeft:8}}>+ Hirdetés</button>
+        {isMob&&<button onClick={()=>go("market")} style={{background:"transparent",border:"none",color:page==="market"?T.heading:T.muted,padding:"8px 10px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:page==="market"?700:500,borderBottom:page==="market"?`2px solid ${ACC.gold}`:"2px solid transparent"}}>Piac</button>}
+        <button onClick={()=>go("sell")} style={{background:ACC.ink,border:"none",color:B.canvas,padding:isMob?"7px 12px":"8px 18px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:isMob?11:12,fontWeight:700,marginLeft:isMob?4:8}}>+ Hirdetés</button>
         {profile?(
           <>
-            <button onClick={()=>go("messages")} style={{background:"transparent",border:"none",cursor:"pointer",color:T.muted,fontSize:18,position:"relative",padding:"4px 10px",marginLeft:4}}>
+            <button onClick={()=>go("messages")} style={{background:"transparent",border:"none",cursor:"pointer",color:T.muted,fontSize:18,position:"relative",padding:"4px 8px",marginLeft:2}}>
               ✉
               {unreadCount>0&&<span style={{position:"absolute",top:1,right:3,background:ACC.gold,borderRadius:10,minWidth:15,height:15,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Manrope',sans-serif",fontSize:8,color:"#fff",fontWeight:700,padding:"0 4px"}}>{unreadCount>9?"9+":unreadCount}</span>}
             </button>
-            <button onClick={()=>go("profile_own")} style={{background:"transparent",border:`1px solid ${B.borderDk}`,borderRadius:24,padding:"4px 12px 4px 5px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,marginLeft:4}}>
-              <Ava u={profile} size={28}/>
-              <span style={{fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600,color:T.body}}>{profile.name?.split(" ")[0]}</span>
+            <button onClick={()=>go("profile_own")} style={{background:"transparent",border:`1px solid ${B.borderDk}`,borderRadius:24,padding:isMob?"4px 8px 4px 4px":"4px 12px 4px 5px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,marginLeft:2}}>
+              <Ava u={profile} size={26}/>
+              {!isMob&&<span style={{fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600,color:T.body}}>{profile.name?.split(" ")[0]}</span>}
             </button>
           </>
         ):(
-          <button onClick={openLogin} style={{background:"transparent",border:`1px solid ${B.borderDk}`,color:T.body,padding:"8px 18px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600,marginLeft:8}}>Belépés</button>
+          <button onClick={openLogin} style={{background:"transparent",border:`1px solid ${B.borderDk}`,color:T.body,padding:isMob?"7px 12px":"8px 18px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:isMob?11:12,fontWeight:600,marginLeft:isMob?4:8}}>Belépés</button>
         )}
       </div>
     </nav>
@@ -253,7 +265,7 @@ function Home({go,listings,profiles,setSelId}) {
   function openDetail(id){setSelId(id);go("detail");}
   return(
     <div style={{paddingTop:62}}>
-      <section style={{minHeight:"80vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden",padding:"100px 24px 80px",background:B.canvas}}>
+      <section style={{minHeight:"80vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden",padding:"80px 20px 60px",background:B.canvas}}>
         <div style={{position:"absolute",inset:0,backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 79px,${B.border}50 79px,${B.border}50 80px)`,pointerEvents:"none",opacity:.4}}/>
         <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:5,marginBottom:28,fontWeight:700,textTransform:"uppercase",position:"relative"}}>Magyar Parfüm Közösség</p>
         <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(48px,8vw,96px)",fontWeight:400,color:T.heading,lineHeight:1.0,marginBottom:20,letterSpacing:-1,position:"relative",maxWidth:820}}>Adj. Végy.<br/><em style={{color:ACC.gold,fontStyle:"italic"}}>Szaglászkodj.</em></h1>
@@ -264,14 +276,14 @@ function Home({go,listings,profiles,setSelId}) {
           <button onClick={()=>go("sell")} style={{background:"transparent",border:`1px solid ${B.borderDk}`,color:T.body,padding:"16px 44px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:600,letterSpacing:.5}}>Hirdetést feladok</button>
         </div>
       </section>
-      <div style={{background:ACC.ink,padding:"24px 60px",display:"flex",gap:60,justifyContent:"center",flexWrap:"wrap"}}>
+      <div style={{background:ACC.ink,padding:"20px clamp(16px,5vw,60px)",display:"flex",gap:"clamp(24px,5vw,60px)",justifyContent:"center",flexWrap:"wrap"}}>
         {[["Hirdetés","élőben"],["Értékelés","közösségtől"],["Csere","lehetséges"]].map(([n,l])=>(
           <div key={l} style={{textAlign:"center"}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:ACC.goldWarm,fontWeight:400}}>∞</div><div style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:"rgba(250,248,244,.5)",letterSpacing:2,fontWeight:600,textTransform:"uppercase",marginTop:3}}>{l}</div></div>
         ))}
       </div>
       {featured.length>0&&(
-        <section style={{padding:"72px 48px",maxWidth:1200,margin:"0 auto"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:40}}>
+        <section style={{padding:"clamp(32px,6vw,72px) clamp(16px,4vw,48px)",maxWidth:1200,margin:"0 auto"}}>
+          <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,alignItems:"baseline",marginBottom:40}}>
             <div><p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8}}>KIEMELTEK</p><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:36,color:T.heading,fontWeight:400}}>Friss eladások</h2></div>
             <button onClick={()=>go("market")} style={{background:"none",border:`1px solid ${B.borderDk}`,color:T.muted,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:11,letterSpacing:1,fontWeight:600,padding:"7px 16px",borderRadius:4}}>MIND →</button>
           </div>
@@ -281,17 +293,17 @@ function Home({go,listings,profiles,setSelId}) {
         </section>
       )}
       {decants.length>0&&(
-        <section style={{padding:"0 48px 80px",maxWidth:1200,margin:"0 auto"}}>
-          <div style={{background:B.paper,border:`1px solid ${B.border}`,borderRadius:12,padding:"44px 40px"}}>
+        <section style={{padding:"0 clamp(16px,4vw,48px) 80px",maxWidth:1200,margin:"0 auto"}}>
+          <div style={{background:B.paper,border:`1px solid ${B.border}`,borderRadius:12,padding:"clamp(24px,4vw,44px) clamp(16px,3vw,40px)"}}>
             <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8}}>DEKANTOK</p>
             <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:32,color:T.heading,fontWeight:400,marginBottom:30}}>Kipróbálnád először?</h2>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(258px,1fr))",gap:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(258px,100%),1fr))",gap:14}}>
               {decants.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>openDetail(l.id)}/>)}
             </div>
           </div>
         </section>
       )}
-      <footer style={{borderTop:`1px solid ${B.border}`,padding:"30px 48px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+      <footer style={{borderTop:`1px solid ${B.border}`,padding:"24px clamp(16px,4vw,48px)",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
         <span style={{fontFamily:"'Playfair Display',serif",fontSize:16,color:T.heading,fontWeight:600,letterSpacing:2}}>SCENTRADE</span>
         <p style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint,letterSpacing:1}}>© 2025 · Parfüm közösségi platform</p>
       </footer>
@@ -309,12 +321,13 @@ function Market({listings,profiles,go,setSelId}) {
   const inp={background:B.canvas,border:`1px solid ${B.border}`,color:T.body,padding:"9px 14px",borderRadius:6,fontFamily:"'Manrope',sans-serif",fontSize:13,outline:"none",fontWeight:500};
   return(
     <div style={{paddingTop:62,minHeight:"100vh",background:B.canvas}}>
-      <div style={{background:B.paper,borderBottom:`1px solid ${B.border}`,padding:"32px 48px"}}>
+      <div style={{background:B.paper,borderBottom:`1px solid ${B.border}`,padding:"24px clamp(16px,4vw,48px)"}}>
         <div style={{maxWidth:1200,margin:"0 auto"}}>
           <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8}}>MARKETPLACE</p>
-          <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:44,color:T.heading,fontWeight:400,marginBottom:28}}>Piac</h1>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Keresés márka, név..." style={{...inp,width:220}}/>
+          <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(28px,6vw,44px)",color:T.heading,fontWeight:400,marginBottom:20}}>Piac</h1>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",rowGap:8,width:"100%"}}>
+            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Keresés márka, név..." style={{...inp,width:"min(220px,100%)"}}
+            />
             {[[typeF,setTypeF,[["all","Eladó + Keresett"],["sell","Csak eladó"],["buy","Csak keresett"]]],[listF,setListF,[["all","Teljes + Dekant"],["full","Csak teljes"],["decant","Csak dekant"]]],[sort,setSort,[["newest","Legújabb"],["price_asc","Legolcsóbb"],["price_desc","Legdrágább"]]]].map(([val,setter,opts],i)=>(
               <select key={i} value={val} onChange={e=>setter(e.target.value)} style={{...inp,cursor:"pointer"}}>{opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
             ))}
@@ -325,9 +338,9 @@ function Market({listings,profiles,go,setSelId}) {
           </div>
         </div>
       </div>
-      <div style={{padding:"36px 48px",maxWidth:1200,margin:"0 auto"}}>
+      <div style={{padding:"24px clamp(16px,4vw,48px)",maxWidth:1200,margin:"0 auto"}}>
         <p style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint,marginBottom:24,letterSpacing:1,fontWeight:600}}>{filtered.length} HIRDETÉS</p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(272px,1fr))",gap:18}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(272px,100%),1fr))",gap:16}}>
           {filtered.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>{setSelId(l.id);go("detail");}}/>)}
         </div>
         {filtered.length===0&&<div style={{textAlign:"center",padding:"90px 0",color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:13}}>{listings.length===0?"Még nincsenek hirdetések. Légy az első!":"Nincs találat."}</div>}
@@ -345,6 +358,7 @@ function Detail({l,u,curProfile,go,setProfileId,setActiveChatWith,onStatusChange
   const [showReviewModal,setShowReviewModal]=useState(false);const [reviewTarget,setReviewTarget]=useState(null);const [reviewRating,setReviewRating]=useState(5);
   const reviewRef=useRef(null);
   const isDecant=l.listing_type==="decant";const isOwn=curProfile?.id===l.user_id;
+  const isMob=useIsMobile();
 
   async function openMsg(){if(!curProfile){go("login");return;}setActiveChatWith(u.id);go("messages");}
   async function openSoldModal(){
@@ -377,9 +391,9 @@ function Detail({l,u,curProfile,go,setProfileId,setActiveChatWith,onStatusChange
   async function changeStatus(s){if(s==="sold"){openSoldModal();return;}await supabase.from("listings").update({status:s}).eq("id",l.id);setStatus(s);onStatusChange?.(l.id,s);}
   const sCol=status==="sold"?ACC.green:status==="pending"?ACC.gold:T.muted;
   return(
-    <div style={{paddingTop:62,maxWidth:980,margin:"0 auto",padding:"80px 40px",background:B.canvas}}>
+    <div style={{paddingTop:62,maxWidth:980,margin:"0 auto",padding:isMob?"72px 16px 48px":"80px 40px",background:B.canvas}}>
       <button onClick={()=>go("market")} style={{background:"none",border:"none",color:T.faint,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:11,letterSpacing:1,marginBottom:36,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>← VISSZA A PIACRA</button>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:52}}>
+      <div style={{display:"grid",gridTemplateColumns:isMob?"1fr":"1fr 300px",gap:isMob?28:52}}>
         <div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:24}}>
             <Pill text={l.type==="buy"?"Keresett":"Eladó"} bg={l.type==="buy"?"#eef4fb":"#faf8f0"} col={l.type==="buy"?"#4a78b0":ACC.gold}/>
@@ -390,10 +404,10 @@ function Detail({l,u,curProfile,go,setProfileId,setActiveChatWith,onStatusChange
           </div>
           <div style={{fontSize:72,marginBottom:20}}>{l.icon||"🫙"}</div>
           <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:3,marginBottom:5,fontWeight:700}}>{(l.brand||"").toUpperCase()}</p>
-          <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:52,color:T.heading,fontWeight:400,lineHeight:1.05,marginBottom:8}}>{l.name}</h1>
+          <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:isMob?32:52,color:T.heading,fontWeight:400,lineHeight:1.05,marginBottom:8}}>{l.name}</h1>
           <p style={{color:T.faint,marginBottom:28,fontSize:14,fontFamily:"'Manrope',sans-serif"}}>{isDecant?`${l.decant_ml}ml spray dekant`:`${l.size||""}`}</p>
           {!isDecant&&l.fill&&<BottleDetail pct={l.fill}/>}
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:48,color:T.heading,marginBottom:36,fontWeight:600}}>{(l.price||0).toLocaleString("hu-HU")} Ft</div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:isMob?32:48,color:T.heading,marginBottom:36,fontWeight:600}}>{(l.price||0).toLocaleString("hu-HU")} Ft</div>
           <div style={{border:`1px solid ${B.border}`,borderRadius:8,padding:"22px 26px",marginBottom:24,background:B.paper}}>
             <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:2,marginBottom:14,fontWeight:700}}>LEÍRÁS</p>
             <p style={{color:T.body,lineHeight:1.9,fontSize:15,fontFamily:"'Manrope',sans-serif"}}>{l.description}</p>
@@ -480,6 +494,7 @@ function Profile({pu,curProfile,go,listings,setActiveChatWith,onSignOut,presence
   const [showRM,setShowRM]=useState(false);const [myRating,setMyRating]=useState(5);const [myText,setMyText]=useState("");
   const [wishlist,setWishlist]=useState([]);const wishRef=useRef(null);
   const isOwn=curProfile?.id===pu?.id;const uls=listings.filter(l=>l.user_id===pu?.id);
+  const isMob=useIsMobile();
   useEffect(()=>{
     if(!pu?.id)return;
     supabase.from("reviews").select("*").eq("to_user",pu.id).then(({data})=>setReviews(data||[]));
@@ -491,12 +506,12 @@ function Profile({pu,curProfile,go,listings,setActiveChatWith,onSignOut,presence
   if(!pu)return null;
   const avg=reviews.length?(reviews.reduce((s,r)=>s+r.rating,0)/reviews.length).toFixed(1):(pu.rating||0).toFixed(1);
   return(
-    <div style={{paddingTop:62,maxWidth:980,margin:"0 auto",padding:"80px 40px",background:B.canvas}}>
-      <div style={{display:"flex",gap:32,alignItems:"flex-start",marginBottom:48,flexWrap:"wrap",paddingBottom:40,borderBottom:`1px solid ${B.border}`}}>
-        <Ava u={pu} size={88}/>
+    <div style={{paddingTop:62,maxWidth:980,margin:"0 auto",padding:isMob?"72px 16px 40px":"80px 40px",background:B.canvas}}>
+      <div style={{display:"flex",gap:isMob?16:32,alignItems:"flex-start",marginBottom:48,flexWrap:"wrap",paddingBottom:40,borderBottom:`1px solid ${B.border}`}}>
+        <Ava u={pu} size={isMob?64:88}/>
         <div style={{flex:1}}>
           <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:10}}>
-            <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:40,color:T.heading,fontWeight:400}}>{pu.name}</h1>
+            <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:isMob?28:40,color:T.heading,fontWeight:400}}>{pu.name}</h1>
             {pu.verified&&<Pill text="Hitelesített" bg={ACC.goldPale} col={ACC.gold}/>}
             <RankBadge sales={pu.sales||0} size="lg"/>
           </div>
@@ -522,7 +537,7 @@ function Profile({pu,curProfile,go,listings,setActiveChatWith,onSignOut,presence
           <button key={k} onClick={()=>setTab(k)} style={{background:"transparent",border:"none",borderBottom:tab===k?`2px solid ${ACC.gold}`:"2px solid transparent",color:tab===k?T.heading:T.faint,padding:"12px 20px",cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:tab===k?700:500,marginBottom:-1}}>{l}</button>
         ))}
       </div>
-      {tab==="listings"&&(<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(262px,1fr))",gap:16}}>{uls.map(l=><Card key={l.id} l={l} u={pu}/>)}{uls.length===0&&<p style={{color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:13}}>Nincs hirdetés.</p>}</div>)}
+      {tab==="listings"&&(<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(262px,100%),1fr))",gap:14}}>{uls.map(l=><Card key={l.id} l={l} u={pu}/>)}{uls.length===0&&<p style={{color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:13}}>Nincs hirdetés.</p>}</div>)}
       {tab==="reviews"&&(
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           {reviews.map((r,i)=>(<div key={i} style={{border:`1px solid ${B.border}`,borderRadius:8,padding:"18px 22px",background:B.paper}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><Stars v={r.rating}/><span style={{color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:11}}>{r.created_at?.slice(0,7)}</span></div><p style={{color:T.body,fontSize:14,lineHeight:1.8,fontFamily:"'Manrope',sans-serif"}}>{r.text}</p></div>))}
@@ -694,15 +709,15 @@ function Sell({curProfile,go,setListings,showToast}) {
   const inp={background:B.paper,border:`1px solid ${B.border}`,color:T.body,padding:"13px 15px",borderRadius:7,fontFamily:"'Manrope',sans-serif",fontSize:16,width:"100%",boxSizing:"border-box",outline:"none"};
   const errB={border:`1px solid ${ACC.red}55`};
   return(
-    <div style={{paddingTop:62,maxWidth:700,margin:"0 auto",padding:"80px 24px 100px",background:B.canvas}}>
+    <div style={{paddingTop:62,maxWidth:700,margin:"0 auto",padding:"72px 16px 80px",background:B.canvas}}>
       <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8,textTransform:"uppercase"}}>ÚJ HIRDETÉS</p>
-      <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:44,color:T.heading,fontWeight:400,marginBottom:10}}>Hirdetés feladása</h1>
+      <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(28px,6vw,44px)",color:T.heading,fontWeight:400,marginBottom:10}}>Hirdetés feladása</h1>
       <p style={{color:T.faint,fontSize:13,marginBottom:48,fontFamily:"'Manrope',sans-serif"}}>Minden mező kitöltése gyorsabb eladást hoz.</p>
       <SellField label="Mit szeretnél?"><div style={{display:"flex",gap:8}}>{[["sell","🏷 Eladom"],["buy","🔍 Keresem"]].map(([t,l])=>(<button key={t} onClick={()=>setSType(t)} style={{flex:1,background:sType===t?ACC.ink:"transparent",border:`1px solid ${sType===t?ACC.ink:B.borderDk}`,color:sType===t?B.canvas:T.muted,padding:"13px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:13,fontWeight:sType===t?700:500,transition:"all .15s"}}>{l}</button>))}</div></SellField>
       <SellField label="Hirdetés típusa"><div style={{display:"flex",gap:8}}>{[["full","🫙 Teljes üveg"],["decant","💧 Dekant"]].map(([t,l])=>(<button key={t} onClick={()=>setSLT(t)} style={{flex:1,background:sListingType===t?ACC.ink:"transparent",border:`1px solid ${sListingType===t?ACC.ink:B.borderDk}`,color:sListingType===t?B.canvas:T.muted,padding:"13px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:13,fontWeight:sListingType===t?700:500,transition:"all .15s"}}>{l}</button>))}</div></SellField>
       <SellField label="Márka *" error={errors.brand}><input ref={refBrand} defaultValue="" placeholder="pl. Creed" autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck="false" style={{...inp,...(errors.brand?errB:{})}}/></SellField>
       <SellField label="Parfüm neve *" error={errors.name}><input ref={refName} defaultValue="" placeholder="pl. Aventus" autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck="false" style={{...inp,...(errors.name?errB:{})}}/></SellField>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(200px,100%),1fr))",gap:12}}>
         {sListingType==="full"&&(<SellField label="Méret"><select value={sSize} onChange={e=>setSSize(e.target.value)} style={{...inp,cursor:"pointer"}}>{["30ml","50ml","75ml","100ml","125ml","150ml","200ml","Egyéb"].map(s=><option key={s}>{s}</option>)}</select></SellField>)}
         {sListingType==="decant"&&(<SellField label="Dekant (ml)"><select value={sDecantMl} onChange={e=>setSDecantMl(e.target.value)} style={{...inp,cursor:"pointer"}}>{DECANT_SZ.map(s=><option key={s} value={s}>{s}ml</option>)}</select></SellField>)}
         <SellField label="Kategória"><select value={sCategory} onChange={e=>setSCategory(e.target.value)} style={{...inp,cursor:"pointer"}}>{["woody","oriental","floral","fresh","aromatic"].map(c=><option key={c}>{c}</option>)}</select></SellField>
@@ -729,7 +744,7 @@ function Sell({curProfile,go,setListings,showToast}) {
 }
 
 function GuestWall({go}) {
-  return(<div style={{paddingTop:62,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.canvas}}><div style={{border:`1px solid ${B.border}`,borderRadius:12,padding:"64px 52px",maxWidth:460,textAlign:"center",background:B.paper,boxShadow:"0 8px 40px rgba(0,0,0,.06)"}}><div style={{fontSize:48,marginBottom:22}}>🔒</div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:32,color:T.heading,fontWeight:400,marginBottom:14}}>Belépés szükséges</h2><p style={{color:T.muted,fontFamily:"'Manrope',sans-serif",fontSize:13,lineHeight:2,marginBottom:36}}>Hirdetés feladásához be kell jelentkezned.<br/>A piacot vendégként is böngészheted.</p><button onClick={()=>go("login")} style={{background:ACC.ink,border:"none",color:B.canvas,padding:"14px 40px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:700,marginBottom:12,width:"100%"}}>Belépés / Regisztráció →</button><button onClick={()=>go("market")} style={{background:"transparent",border:`1px solid ${B.border}`,color:T.muted,padding:"12px 40px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600,width:"100%"}}>Vissza a piacra</button></div></div>);
+  return(<div style={{paddingTop:62,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.canvas}}><div style={{border:`1px solid ${B.border}`,borderRadius:12,padding:"clamp(32px,6vw,64px) clamp(20px,5vw,52px)",maxWidth:460,textAlign:"center",background:B.paper,boxShadow:"0 8px 40px rgba(0,0,0,.06)"}}><div style={{fontSize:48,marginBottom:22}}>🔒</div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:32,color:T.heading,fontWeight:400,marginBottom:14}}>Belépés szükséges</h2><p style={{color:T.muted,fontFamily:"'Manrope',sans-serif",fontSize:13,lineHeight:2,marginBottom:36}}>Hirdetés feladásához be kell jelentkezned.<br/>A piacot vendégként is böngészheted.</p><button onClick={()=>go("login")} style={{background:ACC.ink,border:"none",color:B.canvas,padding:"14px 40px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:700,marginBottom:12,width:"100%"}}>Belépés / Regisztráció →</button><button onClick={()=>go("market")} style={{background:"transparent",border:`1px solid ${B.border}`,color:T.muted,padding:"12px 40px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600,width:"100%"}}>Vissza a piacra</button></div></div>);
 }
 
 function Login({go,showToast}) {
@@ -756,7 +771,7 @@ function Login({go,showToast}) {
   const lbl={fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:2,display:"block",marginBottom:6,textTransform:"uppercase",fontWeight:700};
   if(regState==="confirm")return(
     <div style={{paddingTop:62,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.canvas}}>
-      <div style={{border:`1px solid ${B.border}`,borderRadius:12,padding:"56px 48px",width:440,textAlign:"center",background:B.paper,boxShadow:"0 8px 40px rgba(0,0,0,.06)"}}>
+      <div style={{border:`1px solid ${B.border}`,borderRadius:12,padding:"clamp(28px,6vw,56px) clamp(20px,5vw,48px)",width:"100%",maxWidth:440,textAlign:"center",background:B.paper,boxShadow:"0 8px 40px rgba(0,0,0,.06)"}}>
         <div style={{fontSize:52,marginBottom:22}}>✉</div>
         <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:30,color:T.heading,fontWeight:400,marginBottom:14}}>Erősítsd meg az email címed</h2>
         <p style={{color:T.muted,fontFamily:"'Manrope',sans-serif",fontSize:13,lineHeight:2,marginBottom:32}}>Küldtünk egy megerősítő linket ide:<br/><span style={{color:ACC.gold,fontWeight:600}}>{email}</span><br/><br/>Klikkelj a linkre, majd lépj be!</p>
@@ -766,8 +781,8 @@ function Login({go,showToast}) {
     </div>
   );
   return(
-    <div style={{paddingTop:62,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"80px 24px",background:B.canvas}}>
-      <div style={{border:`1px solid ${B.border}`,borderRadius:12,padding:"56px 48px",width:"100%",maxWidth:440,boxShadow:"0 8px 40px rgba(0,0,0,.06)",background:B.paper}}>
+    <div style={{paddingTop:62,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"72px 16px 40px",background:B.canvas}}>
+      <div style={{border:`1px solid ${B.border}`,borderRadius:12,padding:"clamp(28px,6vw,56px) clamp(20px,5vw,48px)",width:"100%",maxWidth:440,boxShadow:"0 8px 40px rgba(0,0,0,.06)",background:B.paper}}>
         <div style={{textAlign:"center",marginBottom:40}}>
           <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:36,color:T.heading,fontWeight:400,marginBottom:4}}>{mode==="login"?"Belépés":"Regisztráció"}</h2>
           <p style={{fontFamily:"'Manrope',sans-serif",fontSize:12,color:T.faint}}>SCENTRADE · Magyar Parfüm Közösség</p>
@@ -853,6 +868,10 @@ export default function App() {
         input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#b8943f;cursor:pointer;border:2px solid #faf8f4;}
         @keyframes pulse{0%,100%{opacity:.2}50%{opacity:1}}
         a{color:inherit;}
+        @media(max-width:640px){
+          .sc-detail-grid{grid-template-columns:1fr!important;}
+          .sc-nav-links{display:none!important;}
+        }
       `}</style>
       <Nav profile={profile||(user?{name:user.email}:null)} page={page} go={go} openLogin={()=>go("login")} unreadCount={unread}/>
       <ToastContainer/>
