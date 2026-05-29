@@ -311,6 +311,82 @@ function Home({go,listings,profiles,setSelId}) {
   );
 }
 
+
+// ─── MARKET SEARCH AUTOCOMPLETE ───────────────────────────────────────────────
+function MarketSearch({ value, onChange }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [open, setOpen] = useState(false);
+  const timer = useRef(null);
+  const boxRef = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  async function search(q) {
+    if (!q || q.length < 2) { setSuggestions([]); setOpen(false); return; }
+    const { data } = await supabase
+      .from("perfumes")
+      .select("brand, name")
+      .or(`brand.ilike.${q}%,name.ilike.${q}%`)
+      .order("brand")
+      .limit(10);
+    setSuggestions(data || []);
+    setOpen((data || []).length > 0);
+  }
+
+  function handleInput(e) {
+    const val = e.target.value;
+    onChange(val);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => search(val), 200);
+  }
+
+  return (
+    <div ref={boxRef} style={{ position: "relative", width: "min(280px,100%)" }}>
+      <input
+        value={value}
+        onChange={handleInput}
+        onFocus={() => suggestions.length > 0 && setOpen(true)}
+        placeholder="Keresés márka, parfüm neve..."
+        style={{ background: B.canvas, border: `1px solid ${B.border}`, color: T.body, padding: "9px 14px", borderRadius: 6, fontFamily: "'Manrope',sans-serif", fontSize: 13, outline: "none", fontWeight: 500, width: "100%", boxSizing: "border-box" }}
+      />
+      {open && suggestions.length > 0 && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: B.canvas, border: `1px solid ${B.borderDk}`, borderRadius: 8, zIndex: 50, maxHeight: 260, overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,.1)" }}>
+          {suggestions.map((s, i) => (
+            <MarketDropItem key={i} item={s} query={value}
+              onSelect={() => { onChange(s.brand + " " + s.name); setOpen(false); }} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MarketDropItem({ item, query, onSelect }) {
+  const [hov, setHov] = useState(false);
+  function highlight(text) {
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx < 0) return text;
+    return <>{text.slice(0,idx)}<strong style={{color:ACC.gold}}>{text.slice(idx,idx+query.length)}</strong>{text.slice(idx+query.length)}</>;
+  }
+  return (
+    <div
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      onMouseDown={(e) => { e.preventDefault(); onSelect(); }}
+      style={{ padding: "10px 14px", cursor: "pointer", background: hov ? B.warm : "transparent", borderBottom: `1px solid ${B.border}`, transition: "background .1s" }}
+    >
+      <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 13, color: T.body, fontWeight: 600 }}>{highlight(item.brand)}</div>
+      <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 12, color: T.muted }}>{highlight(item.name)}</div>
+    </div>
+  );
+}
+
 function Market({listings,profiles,go,setSelId}) {
   const [q,setQ]=useState("");const [cat,setCat]=useState("Összes");const [typeF,setTypeF]=useState("all");
   const [listF,setListF]=useState("all");const [sort,setSort]=useState("newest");const [hideS,setHideS]=useState(true);
@@ -326,8 +402,7 @@ function Market({listings,profiles,go,setSelId}) {
           <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8}}>MARKETPLACE</p>
           <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(28px,6vw,44px)",color:T.heading,fontWeight:400,marginBottom:20}}>Piac</h1>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",rowGap:8,width:"100%"}}>
-            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Keresés márka, név..." style={{...inp,width:"min(220px,100%)"}}
-            />
+            <MarketSearch value={q} onChange={setQ} />
             {[[typeF,setTypeF,[["all","Eladó + Keresett"],["sell","Csak eladó"],["buy","Csak keresett"]]],[listF,setListF,[["all","Teljes + Dekant"],["full","Csak teljes"],["decant","Csak dekant"]]],[sort,setSort,[["newest","Legújabb"],["price_asc","Legolcsóbb"],["price_desc","Legdrágább"]]]].map(([val,setter,opts],i)=>(
               <select key={i} value={val} onChange={e=>setter(e.target.value)} style={{...inp,cursor:"pointer"}}>{opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
             ))}
@@ -679,6 +754,210 @@ function Messages({curProfile,activeChatWith,setActiveChatWith,presenceMap={}}) 
   return(<div style={{paddingTop:62,height:"100dvh",display:"flex",overflow:"hidden"}}>{listPane}{chatPane}</div>);
 }
 
+
+// ─── PERFUME AUTOCOMPLETE ─────────────────────────────────────────────────────
+function PerfumeAutocomplete({ brandRef, nameRef, onBrandChange, onNameChange }) {
+  const [brandQuery, setBrandQuery] = useState("");
+  const [nameQuery, setNameQuery] = useState("");
+  const [brandSuggestions, setBrandSuggestions] = useState([]);
+  const [nameSuggestions, setNameSuggestions] = useState([]);
+  const [brandOpen, setBrandOpen] = useState(false);
+  const [nameOpen, setNameOpen] = useState(false);
+  const [selectedBrand, setSelectedBrand] = useState("");
+  const [loadingBrand, setLoadingBrand] = useState(false);
+  const [loadingName, setLoadingName] = useState(false);
+  const brandTimer = useRef(null);
+  const nameTimer = useRef(null);
+  const brandBoxRef = useRef(null);
+  const nameBoxRef = useRef(null);
+
+  // Kattintás kívülre zárja a dropdownt
+  useEffect(() => {
+    function handleClick(e) {
+      if (brandBoxRef.current && !brandBoxRef.current.contains(e.target)) setBrandOpen(false);
+      if (nameBoxRef.current && !nameBoxRef.current.contains(e.target)) setNameOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  async function searchBrands(q) {
+    if (!q || q.length < 1) { setBrandSuggestions([]); setBrandOpen(false); return; }
+    setLoadingBrand(true);
+    const { data } = await supabase
+      .from("perfumes")
+      .select("brand")
+      .ilike("brand", `${q}%`)
+      .order("brand")
+      .limit(8);
+    // Deduplicate brands
+    const unique = [...new Set((data || []).map(r => r.brand))];
+    setBrandSuggestions(unique);
+    setBrandOpen(unique.length > 0);
+    setLoadingBrand(false);
+  }
+
+  async function searchNames(q, brand) {
+    if (!q || q.length < 1) { setNameSuggestions([]); setNameOpen(false); return; }
+    setLoadingName(true);
+    let query = supabase.from("perfumes").select("name").ilike("name", `${q}%`).order("name").limit(10);
+    if (brand) query = query.ilike("brand", brand);
+    const { data } = await query;
+    const unique = [...new Set((data || []).map(r => r.name))];
+    setNameSuggestions(unique);
+    setNameOpen(unique.length > 0);
+    setLoadingName(false);
+  }
+
+  function handleBrandInput(e) {
+    const val = e.target.value;
+    // Auto capitalize: minden szó első betűje nagy
+    const formatted = val.replace(/\b\w/g, ch => ch.toUpperCase());
+    e.target.value = formatted;
+    setBrandQuery(formatted);
+    clearTimeout(brandTimer.current);
+    brandTimer.current = setTimeout(() => searchBrands(formatted), 200);
+    if (onBrandChange) onBrandChange(formatted);
+  }
+
+  function handleNameInput(e) {
+    const val = e.target.value;
+    // Első betű nagy, többi marad
+    const formatted = val.charAt(0).toUpperCase() + val.slice(1);
+    e.target.value = formatted;
+    setNameQuery(formatted);
+    clearTimeout(nameTimer.current);
+    nameTimer.current = setTimeout(() => searchNames(formatted, selectedBrand), 200);
+    if (onNameChange) onNameChange(formatted);
+  }
+
+  function selectBrand(brand) {
+    setBrandQuery(brand);
+    setSelectedBrand(brand);
+    setBrandOpen(false);
+    setBrandSuggestions([]);
+    // Frissíti a ref értéket
+    if (brandRef.current) brandRef.current.value = brand;
+    // Betölti a neveket ehhez a márkához
+    supabase.from("perfumes").select("name").ilike("brand", brand).order("name").limit(50)
+      .then(({ data }) => {
+        if (data?.length > 0) {
+          setNameSuggestions(data.map(r => r.name));
+          setNameOpen(true);
+        }
+      });
+    if (onBrandChange) onBrandChange(brand);
+  }
+
+  function selectName(name) {
+    setNameQuery(name);
+    setNameOpen(false);
+    if (nameRef.current) nameRef.current.value = name;
+    if (onNameChange) onNameChange(name);
+  }
+
+  const dropdownStyle = {
+    position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+    background: B.canvas, border: `1px solid ${B.borderDk}`,
+    borderRadius: 8, zIndex: 50, maxHeight: 240, overflowY: "auto",
+    boxShadow: "0 8px 32px rgba(0,0,0,.1)",
+  };
+  const itemStyle = (hov) => ({
+    padding: "10px 14px", cursor: "pointer",
+    fontFamily: "'Manrope',sans-serif", fontSize: 14, color: T.body,
+    background: hov ? B.warm : "transparent",
+    borderBottom: `1px solid ${B.border}`,
+    transition: "background .1s",
+  });
+  const inp = {
+    background: B.paper, border: `1px solid ${B.border}`, color: T.body,
+    padding: "13px 15px", borderRadius: 7, fontFamily: "'Manrope',sans-serif",
+    fontSize: 16, width: "100%", boxSizing: "border-box", outline: "none",
+  };
+
+  return (
+    <>
+      {/* Márka mező */}
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 10, color: T.faint, letterSpacing: 2, marginBottom: 8, textTransform: "uppercase", fontWeight: 700 }}>
+          Márka *
+        </div>
+        <div ref={brandBoxRef} style={{ position: "relative" }}>
+          <input
+            ref={brandRef}
+            defaultValue=""
+            placeholder="pl. Creed"
+            autoComplete="off" autoCorrect="off" spellCheck="false"
+            onChange={handleBrandInput}
+            onFocus={() => brandQuery.length > 0 && brandSuggestions.length > 0 && setBrandOpen(true)}
+            style={inp}
+          />
+          {loadingBrand && (
+            <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: T.faint, fontSize: 12 }}>…</span>
+          )}
+          {brandOpen && brandSuggestions.length > 0 && (
+            <div style={dropdownStyle}>
+              {brandSuggestions.map(brand => (
+                <DropItem key={brand} label={brand} query={brandQuery} onSelect={() => selectBrand(brand)} itemStyle={itemStyle} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Parfüm neve mező */}
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 10, color: T.faint, letterSpacing: 2, marginBottom: 8, textTransform: "uppercase", fontWeight: 700 }}>
+          Parfüm neve *
+        </div>
+        <div ref={nameBoxRef} style={{ position: "relative" }}>
+          <input
+            ref={nameRef}
+            defaultValue=""
+            placeholder="pl. Aventus"
+            autoComplete="off" autoCorrect="off" spellCheck="false"
+            onChange={handleNameInput}
+            onFocus={() => nameQuery.length > 0 && nameSuggestions.length > 0 && setNameOpen(true)}
+            style={inp}
+          />
+          {loadingName && (
+            <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: T.faint, fontSize: 12 }}>…</span>
+          )}
+          {nameOpen && nameSuggestions.length > 0 && (
+            <div style={dropdownStyle}>
+              {nameSuggestions.map(name => (
+                <DropItem key={name} label={name} query={nameQuery} onSelect={() => selectName(name)} itemStyle={itemStyle} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Dropdown elem – highlight a keresett részre
+function DropItem({ label, query, onSelect, itemStyle }) {
+  const [hov, setHov] = useState(false);
+  const idx = label.toLowerCase().indexOf(query.toLowerCase());
+  return (
+    <div
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      onMouseDown={(e) => { e.preventDefault(); onSelect(); }}
+      style={itemStyle(hov)}
+    >
+      {idx >= 0 ? (
+        <>
+          {label.slice(0, idx)}
+          <strong style={{ color: ACC.gold }}>{label.slice(idx, idx + query.length)}</strong>
+          {label.slice(idx + query.length)}
+        </>
+      ) : label}
+    </div>
+  );
+}
+
 function SellField({label,error,children}) {
   return(<div style={{marginBottom:22}}><div style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:error?ACC.red:T.faint,letterSpacing:2,marginBottom:8,textTransform:"uppercase",fontWeight:700}}>{label}{error&&<span style={{marginLeft:8,textTransform:"none",letterSpacing:0,fontSize:11,fontWeight:500}}>— {error}</span>}</div>{children}</div>);
 }
@@ -715,8 +994,12 @@ function Sell({curProfile,go,setListings,showToast}) {
       <p style={{color:T.faint,fontSize:13,marginBottom:48,fontFamily:"'Manrope',sans-serif"}}>Minden mező kitöltése gyorsabb eladást hoz.</p>
       <SellField label="Mit szeretnél?"><div style={{display:"flex",gap:8}}>{[["sell","🏷 Eladom"],["buy","🔍 Keresem"]].map(([t,l])=>(<button key={t} onClick={()=>setSType(t)} style={{flex:1,background:sType===t?ACC.ink:"transparent",border:`1px solid ${sType===t?ACC.ink:B.borderDk}`,color:sType===t?B.canvas:T.muted,padding:"13px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:13,fontWeight:sType===t?700:500,transition:"all .15s"}}>{l}</button>))}</div></SellField>
       <SellField label="Hirdetés típusa"><div style={{display:"flex",gap:8}}>{[["full","🫙 Teljes üveg"],["decant","💧 Dekant"]].map(([t,l])=>(<button key={t} onClick={()=>setSLT(t)} style={{flex:1,background:sListingType===t?ACC.ink:"transparent",border:`1px solid ${sListingType===t?ACC.ink:B.borderDk}`,color:sListingType===t?B.canvas:T.muted,padding:"13px",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:13,fontWeight:sListingType===t?700:500,transition:"all .15s"}}>{l}</button>))}</div></SellField>
-      <SellField label="Márka *" error={errors.brand}><input ref={refBrand} defaultValue="" placeholder="pl. Creed" autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck="false" style={{...inp,...(errors.brand?errB:{})}}/></SellField>
-      <SellField label="Parfüm neve *" error={errors.name}><input ref={refName} defaultValue="" placeholder="pl. Aventus" autoComplete="off" autoCorrect="off" autoCapitalize="words" spellCheck="false" style={{...inp,...(errors.name?errB:{})}}/></SellField>
+      <PerfumeAutocomplete
+        brandRef={refBrand}
+        nameRef={refName}
+        onBrandChange={(v) => { if(errors.brand && v) setErrors(p=>({...p,brand:null})); }}
+        onNameChange={(v) => { if(errors.name && v) setErrors(p=>({...p,name:null})); }}
+      />
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(200px,100%),1fr))",gap:12}}>
         {sListingType==="full"&&(<SellField label="Méret"><select value={sSize} onChange={e=>setSSize(e.target.value)} style={{...inp,cursor:"pointer"}}>{["30ml","50ml","75ml","100ml","125ml","150ml","200ml","Egyéb"].map(s=><option key={s}>{s}</option>)}</select></SellField>)}
         {sListingType==="decant"&&(<SellField label="Dekant (ml)"><select value={sDecantMl} onChange={e=>setSDecantMl(e.target.value)} style={{...inp,cursor:"pointer"}}>{DECANT_SZ.map(s=><option key={s} value={s}>{s}ml</option>)}</select></SellField>)}
