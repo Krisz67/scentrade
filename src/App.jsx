@@ -800,8 +800,13 @@ function PerfumeAutocomplete({ brandRef, nameRef, onBrandChange, onNameChange })
   async function searchNames(q, brand) {
     if (!q || q.length < 1) { setNameSuggestions([]); setNameOpen(false); return; }
     setLoadingName(true);
-    let query = supabase.from("perfumes").select("name").ilike("name", `${q}%`).order("name").limit(10);
-    if (brand) query = query.ilike("brand", brand);
+    let query = supabase.from("perfumes").select("name").order("name").limit(12);
+    // Ha van márka megadva, csak azon belül keresünk — akár gépelt, akár dropdown
+    if (brand) {
+      query = query.ilike("brand", brand).ilike("name", `${q}%`);
+    } else {
+      query = query.ilike("name", `${q}%`);
+    }
     const { data } = await query;
     const unique = [...new Set((data || []).map(r => r.name))];
     setNameSuggestions(unique);
@@ -815,6 +820,15 @@ function PerfumeAutocomplete({ brandRef, nameRef, onBrandChange, onNameChange })
     const formatted = val.replace(/\b\w/g, ch => ch.toUpperCase());
     e.target.value = formatted;
     setBrandQuery(formatted);
+    // Ha a mezőt törlik, töröljük a selectedBrand-et is
+    if (!formatted) {
+      setSelectedBrand("");
+      setNameSuggestions([]);
+      setNameOpen(false);
+    } else {
+      // Ideiglenesen beállítjuk a márkát, hogy a névmező szűrjön rá
+      setSelectedBrand(formatted);
+    }
     clearTimeout(brandTimer.current);
     brandTimer.current = setTimeout(() => searchBrands(formatted), 200);
     if (onBrandChange) onBrandChange(formatted);
@@ -917,7 +931,15 @@ function PerfumeAutocomplete({ brandRef, nameRef, onBrandChange, onNameChange })
             placeholder="pl. Aventus"
             autoComplete="off" autoCorrect="off" spellCheck="false"
             onChange={handleNameInput}
-            onFocus={() => nameQuery.length > 0 && nameSuggestions.length > 0 && setNameOpen(true)}
+            onFocus={() => {
+                if (selectedBrand && !nameQuery) {
+                  // Ha van márka de üres a névmező, betöltjük az összes nevet
+                  supabase.from("perfumes").select("name").ilike("brand", selectedBrand).order("name").limit(50)
+                    .then(({data}) => { if(data?.length>0){setNameSuggestions(data.map(r=>r.name));setNameOpen(true);}});
+                } else if (nameQuery.length > 0 && nameSuggestions.length > 0) {
+                  setNameOpen(true);
+                }
+              }}
             style={inp}
           />
           {loadingName && (
