@@ -305,6 +305,217 @@ const CATS=["Összes","woody","oriental","floral","fresh","aromatic"];
 const DECANT_SZ=[1,2,3,5,10,15,20];
 const ICONS=["✨","🏺","🫙","🌸","🌿","🍂","☀️","🌑","🥀","💀","🎷","🏔","🌊","🍋","🔥"];
 
+
+// ─── FEATURED / KIEMELÉS ──────────────────────────────────────────────────────
+
+const FEATURED_PLANS = [
+  { id: "7day",   label: "7 napos kiemelés",   price: 490,  desc: "Főoldal + Piac teteje, 7 napig" },
+  { id: "30day",  label: "30 napos kiemelés",  price: 1490, desc: "Főoldal + Piac teteje, 30 napig" },
+  { id: "monthly",label: "Havi előfizetés",    price: 990,  desc: "Havonta megújuló, bármikor lemondható" },
+];
+
+// ✦ badge a kiemelt kártyákon
+function FeaturedBadge() {
+  return (
+    <span style={{
+      display:"inline-flex",alignItems:"center",gap:4,
+      background:`linear-gradient(135deg,${ACC.gold}22,${ACC.gold}10)`,
+      border:`1px solid ${ACC.gold}55`,
+      borderRadius:4,padding:"2px 8px",
+      fontFamily:"'Manrope',sans-serif",fontSize:9,
+      color:ACC.gold,fontWeight:700,letterSpacing:1.5,
+      textTransform:"uppercase",whiteSpace:"nowrap",
+    }}>✦ KIEMELT</span>
+  );
+}
+
+// Modal a kiemelés megrendeléséhez
+function FeaturedModal({ listing, profile, onClose, showToast }) {
+  const [plan, setPlan]       = useState("7day");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone]       = useState(false);
+  const selected = FEATURED_PLANS.find(p => p.id === plan);
+
+  async function order() {
+    if (!profile) return;
+    setLoading(true);
+    const { error } = await supabase.from("featured_listings").insert({
+      listing_id: listing.id,
+      user_id:    profile.id,
+      plan,
+      price_huf:  selected.price,
+      status:     "pending",
+    });
+    setLoading(false);
+    if (error) { showToast("Hiba történt, próbáld újra!", "error"); return; }
+    setDone(true);
+  }
+
+  if (done) return (
+    <Modal onClose={onClose}>
+      <div style={{textAlign:"center",padding:"12px 0"}}>
+        <div style={{fontSize:52,marginBottom:20}}>📬</div>
+        <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:T.heading,fontWeight:400,marginBottom:12}}>Kérés elküldve!</h2>
+        <p style={{fontFamily:"'Manrope',sans-serif",fontSize:13,color:T.muted,lineHeight:1.8,marginBottom:28}}>
+          Utald át <strong style={{color:T.body}}>{selected.price} Ft</strong>-ot az alábbi számlaszámra,<br/>
+          majd küldj visszaigazolást.<br/><br/>
+          <strong style={{color:T.body}}>OTP Bank: 11742356-21234567</strong><br/>
+          Közlemény: <strong style={{color:ACC.gold}}>{listing.brand} {listing.name} – {plan}</strong>
+        </p>
+        <div style={{background:"#fffdf4",border:`1px solid ${ACC.gold}30`,borderRadius:8,padding:"14px 18px",marginBottom:24,textAlign:"left"}}>
+          <p style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.muted,lineHeight:1.8}}>
+            ℹ Az utalás beérkezése után <strong>24 órán belül</strong> aktiváljuk a kiemelést.<br/>
+            Értesítünk e-mailben amikor aktív lesz.
+          </p>
+        </div>
+        <button onClick={onClose} style={{background:ACC.ink,border:"none",color:B.canvas,padding:"13px 32px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:13,fontWeight:700}}>Rendben</button>
+      </div>
+    </Modal>
+  );
+
+  return (
+    <Modal onClose={onClose}>
+      <div style={{marginBottom:24}}>
+        <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8,textTransform:"uppercase"}}>✦ KIEMELÉS</p>
+        <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:T.heading,fontWeight:400,marginBottom:4}}>{listing.brand} {listing.name}</h2>
+        <p style={{fontFamily:"'Manrope',sans-serif",fontSize:12,color:T.muted}}>Emeld ki hirdetésedet a főoldalon és a piac tetején</p>
+      </div>
+
+      {/* Terv választó */}
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:28}}>
+        {FEATURED_PLANS.map(p => (
+          <div key={p.id} onClick={() => setPlan(p.id)}
+            style={{
+              border:`1.5px solid ${plan===p.id?ACC.gold:B.border}`,
+              borderRadius:9,padding:"16px 18px",cursor:"pointer",
+              background:plan===p.id?"#fffdf4":B.paper,
+              transition:"all .15s",
+              display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
+            }}>
+            <div>
+              <div style={{fontFamily:"'Manrope',sans-serif",fontSize:13,color:T.body,fontWeight:700,marginBottom:3}}>{p.label}</div>
+              <div style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint}}>{p.desc}</div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:plan===p.id?ACC.gold:T.body,fontWeight:600}}>{p.price} Ft</div>
+              {p.id==="monthly"&&<div style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint}}>/hó</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Mit kap */}
+      <div style={{background:B.paper,border:`1px solid ${B.border}`,borderRadius:8,padding:"14px 18px",marginBottom:24}}>
+        <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:1.5,fontWeight:700,marginBottom:10}}>MIT TARTALMAZ</p>
+        {[
+          "✦ Kiemelt sáv a főoldalon",
+          "✦ Piac lista teteje",
+          "✦ Arany 'Kiemelt' badge a kártyán",
+          "✦ Több megtekintés, gyorsabb eladás",
+        ].map(t => (
+          <div key={t} style={{fontFamily:"'Manrope',sans-serif",fontSize:12,color:T.muted,marginBottom:6}}>{t}</div>
+        ))}
+      </div>
+
+      {/* Fizetési info */}
+      <div style={{background:"#fffdf4",border:`1px solid ${ACC.gold}25`,borderRadius:8,padding:"12px 16px",marginBottom:20}}>
+        <p style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.muted,lineHeight:1.7}}>
+          💳 Fizetés <strong style={{color:T.body}}>banki átutalással</strong>. A megrendelés után megkapod az utalási adatokat. Aktiválás 24 órán belül.
+        </p>
+      </div>
+
+      <button onClick={order} disabled={loading}
+        style={{background:ACC.ink,border:"none",color:B.canvas,padding:"15px",width:"100%",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:700,letterSpacing:.3,opacity:loading?.6:1}}>
+        {loading?"..." :`Megrendelem – ${selected.price} Ft`}
+      </button>
+    </Modal>
+  );
+}
+
+// Saját hirdetések kiemelés kezelője (profil oldalon)
+function MyFeaturedListings({ profile, listings }) {
+  const [featured, setFeatured] = useState([]);
+  const [showModal, setShowModal] = useState(null); // listing object
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    supabase.from("featured_listings")
+      .select("*, listings(brand,name,icon)")
+      .eq("user_id", profile.id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setFeatured(data || []));
+  }, [profile?.id]);
+
+  const myListings = listings.filter(l => l.user_id === profile?.id && l.status === "active");
+  const statusColor = { pending: ACC.gold, active: ACC.green, expired: T.faint, cancelled: ACC.red };
+  const statusLabel = { pending: "⏳ Jóváhagyásra vár", active: "✦ Aktív", expired: "Lejárt", cancelled: "Lemondva" };
+
+  return (
+    <div>
+      <div style={{background:B.paper,border:`1px solid ${B.border}`,borderRadius:10,padding:"20px 22px",marginBottom:20}}>
+        <p style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:T.heading,marginBottom:6}}>✦ Kiemelések</p>
+        <p style={{fontFamily:"'Manrope',sans-serif",fontSize:12,color:T.muted,lineHeight:1.7,marginBottom:16}}>
+          Emeld ki hirdetéseidet a főoldalon és a piac tetején. Manuális átutalással, 24 órán belüli aktiválással.
+        </p>
+        {myListings.length > 0 ? (
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {myListings.map(l => {
+              const existing = featured.find(f => f.listing_id === l.id && (f.status === "active" || f.status === "pending"));
+              return (
+                <div key={l.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",border:`1px solid ${B.border}`,borderRadius:8,background:B.canvas}}>
+                  <span style={{fontSize:24,flexShrink:0}}>{l.icon||"🫙"}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:"'Manrope',sans-serif",fontSize:13,color:T.body,fontWeight:600}}>{l.brand} {l.name}</div>
+                    <div style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint}}>{(l.price||0).toLocaleString("hu-HU")} Ft</div>
+                  </div>
+                  {existing ? (
+                    <span style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:statusColor[existing.status],fontWeight:700,whiteSpace:"nowrap"}}>
+                      {statusLabel[existing.status]}
+                      {existing.expires_at && existing.status==="active" && ` · ${new Date(existing.expires_at).toLocaleDateString("hu-HU",{month:"short",day:"numeric"})}-ig`}
+                    </span>
+                  ) : (
+                    <button onClick={() => setShowModal(l)}
+                      style={{background:ACC.ink,border:"none",color:B.canvas,padding:"7px 14px",borderRadius:5,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:11,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>
+                      ✦ Kiemel
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p style={{fontFamily:"'Manrope',sans-serif",fontSize:12,color:T.faint}}>Nincs aktív hirdetésed.</p>
+        )}
+      </div>
+
+      {/* Meglévő kiemelések listája */}
+      {featured.length > 0 && (
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:1.5,fontWeight:700,marginBottom:4}}>ELŐZMÉNYEK</p>
+          {featured.map(f => (
+            <div key={f.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",border:`1px solid ${B.border}`,borderRadius:7,background:B.paper}}>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:"'Manrope',sans-serif",fontSize:12,color:T.body,fontWeight:600}}>{f.listings?.brand} {f.listings?.name}</div>
+                <div style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint}}>{FEATURED_PLANS.find(p=>p.id===f.plan)?.label} · {f.price_huf} Ft</div>
+              </div>
+              <span style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:statusColor[f.status]||T.faint,fontWeight:700}}>{statusLabel[f.status]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showModal && (
+        <FeaturedModal
+          listing={showModal}
+          profile={profile}
+          onClose={() => setShowModal(null)}
+          showToast={() => {}}
+        />
+      )}
+    </div>
+  );
+}
+
 function Nav({profile,page,go,openLogin,unreadCount}) {
   const [scrolled,setScrolled]=useState(false);
   const isMob=useIsMobile();
@@ -340,7 +551,7 @@ function Nav({profile,page,go,openLogin,unreadCount}) {
   );
 }
 
-function Card({l,u,onClick}) {
+function Card({l,u,onClick,featured=false}) {
   const [hov,setHov]=useState(false);
   const isDecant=l.listing_type==="decant",isBuy=l.type==="buy",isSold=l.status==="sold",isPend=l.status==="pending";
   return(
@@ -349,6 +560,7 @@ function Card({l,u,onClick}) {
       {(isSold||isPend)&&<div style={{position:"absolute",top:0,left:0,right:0,padding:"4px 0",textAlign:"center",background:isSold?"#f2faf6":"#fefaf0",borderBottom:`1px solid ${isSold?ACC.green:ACC.gold}28`,fontFamily:"'Manrope',sans-serif",fontSize:9,letterSpacing:1.5,color:isSold?ACC.green:ACC.gold,fontWeight:700}}>{isSold?"✓ ELADVA":"⏳ FÜGGŐBEN"}</div>}
       {!isSold&&!isPend&&u?.vacation_mode&&<div style={{position:"absolute",top:0,left:0,right:0,padding:"4px 8px",textAlign:"center",background:"#fffdf4",borderBottom:`1px solid ${ACC.gold}28`,fontFamily:"'Manrope',sans-serif",fontSize:9,letterSpacing:.5,color:ACC.gold,fontWeight:700}}>🌴 {u.vacation_until?`Nem postáz ${new Date(u.vacation_until).toLocaleDateString("hu-HU",{month:"short",day:"numeric"})}-ig`:"Szabadságon"}</div>}
       <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap",marginTop:(isSold||isPend)?24:0}}>
+        {featured&&<FeaturedBadge/>}
         <Pill text={isBuy?"Keresett":"Eladó"} bg={isBuy?"#eef4fb":"#faf8f0"} col={isBuy?"#4a78b0":ACC.gold}/>
         <Pill text={isDecant?"Dekant":"Teljes"} bg={isDecant?"#fff5ee":"#f2faf6"} col={isDecant?"#c0724a":ACC.green}/>
         {l.condition&&<Pill text={COND[l.condition]} bg={COND_COLOR[l.condition]+"12"} col={COND_COLOR[l.condition]}/>}
@@ -377,8 +589,27 @@ function Card({l,u,onClick}) {
 }
 
 function Home({go,listings,profiles,setSelId}) {
-  const featured=listings.filter(l=>l.type==="sell"&&l.status!=="sold").slice(0,4);
-  const decants=listings.filter(l=>l.listing_type==="decant"&&l.status!=="sold").slice(0,3);
+  const [featuredIds, setFeaturedIds] = useState([]);
+
+  useEffect(() => {
+    // Aktív kiemelések betöltése
+    supabase.from("featured_listings")
+      .select("listing_id")
+      .eq("status","active")
+      .gt("expires_at", new Date().toISOString())
+      .then(({data}) => {
+        if (data) setFeaturedIds(data.map(f => f.listing_id));
+      });
+  }, []);
+
+  // Kiemelt hirdetések – Supabase-ből + fallback első 4 aktív
+  const featuredListings = featuredIds.length > 0
+    ? listings.filter(l => featuredIds.includes(l.id) && l.status !== "sold")
+    : listings.filter(l => l.type==="sell" && l.status!=="sold").slice(0,4);
+
+  const decants = listings.filter(l=>l.listing_type==="decant"&&l.status!=="sold").slice(0,3);
+  const regular = listings.filter(l=>l.type==="sell"&&l.status!=="sold"&&!featuredIds.includes(l.id)).slice(0,8);
+
   function openDetail(id){setSelId(id);go("detail");}
   return(
     <div style={{paddingTop:62}}>
@@ -512,12 +743,23 @@ function MarketDropItem({ item, query, onSelect }) {
 }
 
 function Market({listings,profiles,go,setSelId}) {
+  const [featuredIds, setFeaturedIds] = useState([]);
+  useEffect(() => {
+    supabase.from("featured_listings").select("listing_id").eq("status","active").gt("expires_at", new Date().toISOString())
+      .then(({data}) => { if(data) setFeaturedIds(data.map(f=>f.listing_id)); });
+  }, []);
   const [q,setQ]=useState("");const [cat,setCat]=useState("Összes");const [typeF,setTypeF]=useState("all");
   const [listF,setListF]=useState("all");const [sort,setSort]=useState("newest");const [hideS,setHideS]=useState(true);
   const filtered=listings.filter(l=>{
     if(hideS&&l.status==="sold")return false;const sq=q.toLowerCase();
     return(!sq||(l.brand||"").toLowerCase().includes(sq)||(l.name||"").toLowerCase().includes(sq))&&(cat==="Összes"||l.category===cat)&&(typeF==="all"||l.type===typeF)&&(listF==="all"||l.listing_type===listF);
-  }).sort((a,b)=>sort==="newest"?new Date(b.created_at)-new Date(a.created_at):sort==="price_asc"?a.price-b.price:b.price-a.price);
+  }).sort((a,b)=>{
+    // Kiemelt hirdetések mindig elöl
+    const aF = featuredIds.includes(a.id) ? 1 : 0;
+    const bF = featuredIds.includes(b.id) ? 1 : 0;
+    if (bF !== aF) return bF - aF;
+    return sort==="newest"?new Date(b.created_at)-new Date(a.created_at):sort==="price_asc"?a.price-b.price:b.price-a.price;
+  });
   const inp={background:B.canvas,border:`1px solid ${B.border}`,color:T.body,padding:"9px 14px",borderRadius:6,fontFamily:"'Manrope',sans-serif",fontSize:13,outline:"none",fontWeight:500};
   return(
     <div style={{paddingTop:62,minHeight:"100vh",background:B.canvas}}>
@@ -540,7 +782,19 @@ function Market({listings,profiles,go,setSelId}) {
       <div style={{padding:"24px clamp(16px,4vw,48px)",maxWidth:1200,margin:"0 auto"}}>
         <p style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint,marginBottom:24,letterSpacing:1,fontWeight:600}}>{filtered.length} HIRDETÉS</p>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:20}}>
-          {filtered.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>{setSelId(l.id);go("detail");}}/>)}
+          {filtered.map(l => {
+            const isFeat = featuredIds.includes(l.id);
+            return isFeat ? (
+              <div key={l.id} style={{position:"relative"}}>
+                <div style={{position:"absolute",top:-1,left:-1,right:-1,bottom:-1,borderRadius:11,background:`linear-gradient(135deg,${ACC.gold}40,${ACC.gold}15,${ACC.gold}40)`,zIndex:0,pointerEvents:"none"}}/>
+                <div style={{position:"relative",zIndex:1}}>
+                  <Card l={l} u={profiles[l.user_id]} onClick={()=>{setSelId(l.id);go("detail");}} featured={true}/>
+                </div>
+              </div>
+            ) : (
+              <Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>{setSelId(l.id);go("detail");}}/>
+            );
+          })}
         </div>
         {filtered.length===0&&<div style={{textAlign:"center",padding:"90px 0",color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:13}}>{listings.length===0?"Még nincsenek hirdetések. Légy az első!":"Nincs találat."}</div>}
       </div>
@@ -735,7 +989,10 @@ function Profile({pu,curProfile,go,listings,setActiveChatWith,onSignOut,presence
       {isOwn&&<div style={{marginBottom:20}}><RankProgress sales={pu.sales||0}/></div>}
       {isOwn&&<div style={{marginBottom:36}}><VacationSettings profile={pu} onUpdate={(updated)=>{}} /></div>}
       <div style={{display:"flex",borderBottom:`1px solid ${B.border}`,marginBottom:36}}>
-        {[["listings",`Hirdetések (${uls.length})`],["reviews",`Értékelések (${reviews.length})`],["wishlist",`Kívánlista (${wishlist.length})`]].map(([k,l])=>(
+        {(isOwn
+        ? [["listings",`Hirdetések (${uls.length})`],["reviews",`Értékelések (${reviews.length})`],["wishlist",`Kívánlista (${wishlist.length})`],["featured","✦ Kiemelések"]]
+        : [["listings",`Hirdetések (${uls.length})`],["reviews",`Értékelések (${reviews.length})`],["wishlist",`Kívánlista (${wishlist.length})`]]
+      ).map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{background:"transparent",border:"none",borderBottom:tab===k?`2px solid ${ACC.gold}`:"2px solid transparent",color:tab===k?T.heading:T.faint,padding:"12px 20px",cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:tab===k?700:500,marginBottom:-1}}>{l}</button>
         ))}
       </div>
@@ -756,6 +1013,10 @@ function Profile({pu,curProfile,go,listings,setActiveChatWith,onSignOut,presence
           </div>
         </div>
       )}
+      {tab==="featured"&&isOwn&&(
+        <MyFeaturedListings profile={curProfile} listings={listings}/>
+      )}
+
       {showRM&&(<Modal onClose={()=>setShowRM(false)}><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:28,color:T.heading,fontWeight:400,marginBottom:22}}>Értékelés írása</h2><div style={{marginBottom:22}}><Stars v={myRating} size={30} interactive onChange={setMyRating}/></div><textarea value={myText} onChange={e=>setMyText(e.target.value)} rows={4} placeholder="Írd le tapasztalatod..." style={{background:B.paper,border:`1px solid ${B.border}`,color:T.body,padding:"13px 15px",borderRadius:7,width:"100%",fontFamily:"'Manrope',sans-serif",fontSize:14,resize:"vertical",outline:"none",boxSizing:"border-box",marginBottom:18,lineHeight:1.7}}/><button onClick={submitReview} style={{background:ACC.ink,border:"none",color:B.canvas,padding:"14px",width:"100%",borderRadius:7,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:700}}>Értékelés küldése →</button></Modal>)}
     </div>
   );
