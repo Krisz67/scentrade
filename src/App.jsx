@@ -310,7 +310,7 @@ function Nav({profile,page,go,openLogin,unreadCount}) {
   const isMob=useIsMobile();
   useEffect(()=>{const fn=()=>setScrolled(window.scrollY>20);window.addEventListener("scroll",fn);return()=>window.removeEventListener("scroll",fn);},[]);
   return(
-    <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:100,height:62,background:scrolled?"rgba(250,248,244,.96)":B.canvas,backdropFilter:"blur(16px)",borderBottom:`1px solid ${scrolled?B.border:"transparent"}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:isMob?"0 16px":"0 40px",transition:"border-color .3s,background .3s"}}>
+    <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:100,height:62,background:scrolled?"rgba(250,248,244,.96)":B.canvas,backdropFilter:"blur(16px)",borderBottom:`1px solid ${scrolled?B.border:"transparent"}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:isMob?"0 16px":"0 clamp(40px,5vw,80px)",transition:"border-color .3s,background .3s"}}>
       <div onClick={()=>go("home")} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>
         <span style={{fontFamily:"'Playfair Display',serif",fontSize:isMob?18:22,fontWeight:700,color:T.heading,letterSpacing:isMob?2:3}}>SCENTRADE</span>
         {!isMob&&<><span style={{width:1,height:16,background:B.borderDk,margin:"0 4px"}}/><span style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:3}}>HU</span></>}
@@ -382,15 +382,22 @@ function Home({go,listings,profiles,setSelId}) {
   function openDetail(id){setSelId(id);go("detail");}
   return(
     <div style={{paddingTop:62}}>
-      <section style={{minHeight:"80vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden",padding:"80px 20px 60px",background:B.canvas}}>
-        <div style={{position:"absolute",inset:0,backgroundImage:`repeating-linear-gradient(0deg,transparent,transparent 79px,${B.border}50 79px,${B.border}50 80px)`,pointerEvents:"none",opacity:.4}}/>
-        <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:5,marginBottom:28,fontWeight:700,textTransform:"uppercase",position:"relative"}}>Magyar Parfüm Közösség</p>
-        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(48px,8vw,96px)",fontWeight:400,color:T.heading,lineHeight:1.0,marginBottom:20,letterSpacing:-1,position:"relative",maxWidth:820}}>Adj. Végy.<br/><em style={{color:ACC.gold,fontStyle:"italic"}}>Szaglászkodj.</em></h1>
-        <div style={{width:60,height:1,background:ACC.gold,margin:"0 auto 28px",position:"relative"}}/>
-        <p style={{color:T.muted,fontSize:16,maxWidth:480,lineHeight:1.9,marginBottom:52,fontFamily:"'Manrope',sans-serif",position:"relative"}}>Niche és designer parfümök, <strong style={{color:T.body,fontWeight:600}}>dekantok</strong> és teljes üvegek biztonságos adásvételéhez.</p>
-        <div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center",position:"relative"}}>
-          <button onClick={()=>go("market")} style={{background:ACC.ink,border:"none",color:B.canvas,padding:"16px 44px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:700,letterSpacing:.5,boxShadow:"0 4px 20px rgba(0,0,0,.12)"}}>Böngéssz a piacon →</button>
-          <button onClick={()=>go("sell")} style={{background:"transparent",border:`1px solid ${B.borderDk}`,color:T.body,padding:"16px 44px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:14,fontWeight:600,letterSpacing:.5}}>Hirdetést feladok</button>
+      <section style={{minHeight:"92vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden",padding:"100px 40px 80px",background:B.canvas,width:"100%"}}>
+        {/* Finom rács háttér */}
+        <div style={{position:"absolute",inset:0,backgroundImage:`linear-gradient(${B.border}40 1px,transparent 1px),linear-gradient(90deg,${B.border}40 1px,transparent 1px)`,backgroundSize:"80px 80px",pointerEvents:"none"}}/>
+        {/* Arany folt középen */}
+        <div style={{position:"absolute",top:"40%",left:"50%",transform:"translate(-50%,-50%)",width:"60vw",height:"60vw",maxWidth:700,maxHeight:700,background:`radial-gradient(ellipse,${ACC.gold}08 0%,transparent 70%)`,pointerEvents:"none"}}/>
+        <p style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:ACC.gold,letterSpacing:6,marginBottom:32,fontWeight:700,textTransform:"uppercase",position:"relative"}}>Magyar Parfüm Közösség</p>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(56px,9vw,120px)",fontWeight:400,color:T.heading,lineHeight:.95,marginBottom:24,letterSpacing:-2,position:"relative",maxWidth:900}}>
+          Adj. Végy.<br/><em style={{color:ACC.gold,fontStyle:"italic"}}>Szaglászkodj.</em>
+        </h1>
+        <div style={{width:48,height:1,background:ACC.gold,margin:"0 auto 32px",position:"relative",opacity:.7}}/>
+        <p style={{color:T.muted,fontSize:"clamp(14px,1.6vw,17px)",maxWidth:520,lineHeight:1.9,marginBottom:56,fontFamily:"'Manrope',sans-serif",position:"relative",fontWeight:400}}>
+          Niche és designer parfümök, <strong style={{color:T.body,fontWeight:600}}>dekantok</strong> és teljes üvegek biztonságos adásvételéhez.
+        </p>
+        <div style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center",position:"relative"}}>
+          <button onClick={()=>go("market")} style={{background:ACC.ink,border:"none",color:B.canvas,padding:"17px 52px",borderRadius:5,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:"clamp(13px,1.4vw,15px)",fontWeight:700,letterSpacing:.8,boxShadow:"0 6px 24px rgba(0,0,0,.15)",transition:"transform .15s,box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 10px 32px rgba(0,0,0,.2)"}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 6px 24px rgba(0,0,0,.15)"}}>Böngéssz a piacon →</button>
+          <button onClick={()=>go("sell")} style={{background:"transparent",border:`1.5px solid ${B.borderDk}`,color:T.body,padding:"17px 52px",borderRadius:5,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:"clamp(13px,1.4vw,15px)",fontWeight:600,letterSpacing:.5,transition:"border-color .15s,color .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=ACC.gold;e.currentTarget.style.color=ACC.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=B.borderDk;e.currentTarget.style.color=T.body}}>Hirdetést feladok</button>
         </div>
       </section>
       <div style={{background:ACC.ink,padding:"20px clamp(16px,5vw,60px)",display:"flex",gap:"clamp(24px,5vw,60px)",justifyContent:"center",flexWrap:"wrap"}}>
@@ -399,7 +406,7 @@ function Home({go,listings,profiles,setSelId}) {
         ))}
       </div>
       {featured.length>0&&(
-        <section style={{padding:"clamp(32px,6vw,72px) clamp(16px,4vw,48px)",maxWidth:1200,margin:"0 auto"}}>
+        <section style={{padding:"clamp(32px,6vw,72px) clamp(24px,5vw,80px)",maxWidth:1400,margin:"0 auto",width:"100%"}}>
           <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,alignItems:"baseline",marginBottom:40}}>
             <div><p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8}}>KIEMELTEK</p><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:36,color:T.heading,fontWeight:400}}>Friss eladások</h2></div>
             <button onClick={()=>go("market")} style={{background:"none",border:`1px solid ${B.borderDk}`,color:T.muted,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:11,letterSpacing:1,fontWeight:600,padding:"7px 16px",borderRadius:4}}>MIND →</button>
@@ -410,7 +417,7 @@ function Home({go,listings,profiles,setSelId}) {
         </section>
       )}
       {decants.length>0&&(
-        <section style={{padding:"0 clamp(16px,4vw,48px) 80px",maxWidth:1200,margin:"0 auto"}}>
+        <section style={{padding:"0 clamp(24px,5vw,80px) 80px",maxWidth:1400,margin:"0 auto",width:"100%"}}>
           <div style={{background:B.paper,border:`1px solid ${B.border}`,borderRadius:12,padding:"clamp(24px,4vw,44px) clamp(16px,3vw,40px)"}}>
             <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8}}>DEKANTOK</p>
             <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:32,color:T.heading,fontWeight:400,marginBottom:30}}>Kipróbálnád először?</h2>
@@ -532,7 +539,7 @@ function Market({listings,profiles,go,setSelId}) {
       </div>
       <div style={{padding:"24px clamp(16px,4vw,48px)",maxWidth:1200,margin:"0 auto"}}>
         <p style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint,marginBottom:24,letterSpacing:1,fontWeight:600}}>{filtered.length} HIRDETÉS</p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(272px,100%),1fr))",gap:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:20}}>
           {filtered.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>{setSelId(l.id);go("detail");}}/>)}
         </div>
         {filtered.length===0&&<div style={{textAlign:"center",padding:"90px 0",color:T.faint,fontFamily:"'Manrope',sans-serif",fontSize:13}}>{listings.length===0?"Még nincsenek hirdetések. Légy az első!":"Nincs találat."}</div>}
@@ -1290,7 +1297,8 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Manrope:wght@400;500;600;700&display=swap');
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        body{background:#faf8f4;}
+        html,body,#root{width:100%;min-height:100vh;}
+        body{background:#faf8f4;overflow-x:hidden;}
         input,textarea,select{font-size:16px!important;font-family:'Manrope',sans-serif;}
         input::placeholder,textarea::placeholder{color:#c5bfb8;}
         ::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:#f5f2ec;}::-webkit-scrollbar-thumb{background:#e3ddd4;border-radius:3px;}
