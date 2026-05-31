@@ -81,6 +81,122 @@ function OnlineBadge({presenceMap,userId,showLabel=false}) {
   return null;
 }
 
+
+// ─── VACATION BADGE ───────────────────────────────────────────────────────────
+function VacationBadge({ profile, size = "sm" }) {
+  if (!profile?.vacation_mode) return null;
+  const until = profile.vacation_until
+    ? new Date(profile.vacation_until).toLocaleDateString("hu-HU", { month: "long", day: "numeric" })
+    : null;
+  const isLg = size === "lg";
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: isLg ? 6 : 4,
+      background: "#fff8e8", border: `1px solid ${ACC.gold}40`,
+      borderRadius: 5, padding: isLg ? "5px 12px" : "3px 8px",
+      fontFamily: "'Manrope',sans-serif", fontSize: isLg ? 11 : 10,
+      color: ACC.gold, fontWeight: 700, whiteSpace: "nowrap",
+    }}>
+      🌴 {until ? `Nem postáz ${until}-ig` : "Szabadságon"}
+    </span>
+  );
+}
+
+// Vacation mode beállító – csak saját profil
+function VacationSettings({ profile, onUpdate }) {
+  const [active, setActive] = useState(profile?.vacation_mode || false);
+  const [until, setUntil] = useState(profile?.vacation_until || "");
+  const [saving, setSaving] = useState(false);
+
+  async function save(newActive, newUntil) {
+    setSaving(true);
+    await supabase.from("profiles").update({
+      vacation_mode: newActive,
+      vacation_until: newActive && newUntil ? newUntil : null,
+    }).eq("id", profile.id);
+    setSaving(false);
+    onUpdate?.({ ...profile, vacation_mode: newActive, vacation_until: newUntil });
+  }
+
+  async function toggle() {
+    const next = !active;
+    setActive(next);
+    if (!next) setUntil("");
+    await save(next, until);
+  }
+
+  async function saveDate(date) {
+    setUntil(date);
+    if (active) await save(true, date);
+  }
+
+  // Min dátum = ma
+  const today = new Date().toISOString().split("T")[0];
+
+  return (
+    <div style={{
+      border: `1px solid ${active ? ACC.gold + "50" : B.border}`,
+      borderRadius: 10, padding: "18px 20px",
+      background: active ? "#fffdf4" : B.paper,
+      transition: "all .2s",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: active ? 14 : 0 }}>
+        <div>
+          <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 13, color: T.body, fontWeight: 700, marginBottom: 2 }}>
+            🌴 Szabadság mód
+          </div>
+          <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.faint }}>
+            {active ? "Hirdetéseid láthatók, de a vevők értesülnek" : "Jelezd ha nem tudsz postázni"}
+          </div>
+        </div>
+        {/* Toggle switch */}
+        <div
+          onClick={toggle}
+          style={{
+            width: 44, height: 24, borderRadius: 12, cursor: "pointer",
+            background: active ? ACC.gold : B.borderDk,
+            position: "relative", transition: "background .2s", flexShrink: 0,
+          }}
+        >
+          <div style={{
+            position: "absolute", top: 3,
+            left: active ? 23 : 3,
+            width: 18, height: 18, borderRadius: "50%",
+            background: "#fff", transition: "left .2s",
+            boxShadow: "0 1px 4px rgba(0,0,0,.2)",
+          }}/>
+        </div>
+      </div>
+
+      {active && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.muted, whiteSpace: "nowrap" }}>
+            Meddig tartasz szabadságot?
+          </div>
+          <input
+            type="date"
+            min={today}
+            value={until}
+            onChange={e => saveDate(e.target.value)}
+            style={{
+              background: B.canvas, border: `1px solid ${B.borderDk}`,
+              color: T.body, padding: "7px 12px", borderRadius: 6,
+              fontFamily: "'Manrope',sans-serif", fontSize: 13,
+              outline: "none", cursor: "pointer",
+            }}
+          />
+          {until && (
+            <span style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: ACC.gold, fontWeight: 700 }}>
+              🌴 Nem postázol {new Date(until).toLocaleDateString("hu-HU", { month: "long", day: "numeric" })}-ig
+            </span>
+          )}
+        </div>
+      )}
+      {saving && <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 10, color: T.faint, marginTop: 8 }}>Mentés...</div>}
+    </div>
+  );
+}
+
 function Stars({v=5,size=13,interactive=false,onChange}) {
   const [hov,setHov]=useState(0);
   return(<span style={{fontSize:size,letterSpacing:3,cursor:interactive?"pointer":"default"}}>{[1,2,3,4,5].map(i=>(<span key={i} style={{color:i<=(hov||Math.round(v))?ACC.gold:B.borderDk}} onMouseEnter={()=>interactive&&setHov(i)} onMouseLeave={()=>interactive&&setHov(0)} onClick={()=>interactive&&onChange?.(i)}>★</span>))}</span>);
@@ -231,6 +347,7 @@ function Card({l,u,onClick}) {
     <div onClick={onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
       style={{background:hov?B.warm:B.paper,border:`1px solid ${hov?B.borderDk:B.border}`,borderRadius:10,padding:"26px 22px 20px",cursor:onClick?"pointer":"default",transition:"all .22s ease",transform:hov?"translateY(-2px)":"none",boxShadow:hov?"0 8px 32px rgba(0,0,0,.07)":"0 1px 4px rgba(0,0,0,.03)",opacity:isSold?.55:1,position:"relative",overflow:"hidden"}}>
       {(isSold||isPend)&&<div style={{position:"absolute",top:0,left:0,right:0,padding:"4px 0",textAlign:"center",background:isSold?"#f2faf6":"#fefaf0",borderBottom:`1px solid ${isSold?ACC.green:ACC.gold}28`,fontFamily:"'Manrope',sans-serif",fontSize:9,letterSpacing:1.5,color:isSold?ACC.green:ACC.gold,fontWeight:700}}>{isSold?"✓ ELADVA":"⏳ FÜGGŐBEN"}</div>}
+      {!isSold&&!isPend&&u?.vacation_mode&&<div style={{position:"absolute",top:0,left:0,right:0,padding:"4px 8px",textAlign:"center",background:"#fffdf4",borderBottom:`1px solid ${ACC.gold}28`,fontFamily:"'Manrope',sans-serif",fontSize:9,letterSpacing:.5,color:ACC.gold,fontWeight:700}}>🌴 {u.vacation_until?`Nem postáz ${new Date(u.vacation_until).toLocaleDateString("hu-HU",{month:"short",day:"numeric"})}-ig`:"Szabadságon"}</div>}
       <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap",marginTop:(isSold||isPend)?24:0}}>
         <Pill text={isBuy?"Keresett":"Eladó"} bg={isBuy?"#eef4fb":"#faf8f0"} col={isBuy?"#4a78b0":ACC.gold}/>
         <Pill text={isDecant?"Dekant":"Teljes"} bg={isDecant?"#fff5ee":"#f2faf6"} col={isDecant?"#c0724a":ACC.green}/>
@@ -509,9 +626,10 @@ function Detail({l,u,curProfile,go,setProfileId,setActiveChatWith,onStatusChange
                 <div style={{fontSize:12,color:T.faint,marginTop:2,fontFamily:"'Manrope',sans-serif"}}>📍 {u?.location}</div>
               </div>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
               <OnlineBadge presenceMap={presenceMap} userId={u?.id} showLabel={true}/>
             </div>
+            {u?.vacation_mode&&<div style={{marginBottom:12}}><VacationBadge profile={u} size="lg"/></div>}
             <div style={{marginBottom:12}}><RankBadge sales={u?.sales||0} size="lg"/><span style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.muted,marginLeft:8}}>{u?.sales||0} eladás</span></div>
             <div style={{display:"flex",alignItems:"center",gap:8}}><Stars v={u?.rating||0} size={14}/><span style={{fontSize:12,color:T.muted,fontFamily:"'Manrope',sans-serif"}}>{u?.rating||0} · {u?.rating_count||0} értékelés</span></div>
           </div>
@@ -590,8 +708,9 @@ function Profile({pu,curProfile,go,listings,setActiveChatWith,onSignOut,presence
             {pu.verified&&<Pill text="Hitelesített" bg={ACC.goldPale} col={ACC.gold}/>}
             <RankBadge sales={pu.sales||0} size="lg"/>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
             <OnlineBadge presenceMap={presenceMap} userId={pu?.id} showLabel={true}/>
+            <VacationBadge profile={pu} size="lg"/>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
             <Stars v={Number(avg)} size={16}/>
@@ -606,7 +725,8 @@ function Profile({pu,curProfile,go,listings,setActiveChatWith,onSignOut,presence
           {isOwn&&<button onClick={onSignOut} style={{background:"transparent",border:`1px solid ${ACC.red}30`,color:ACC.red,padding:"10px 22px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600}}>Kijelentkezés</button>}
         </div>
       </div>
-      {isOwn&&<div style={{marginBottom:36}}><RankProgress sales={pu.sales||0}/></div>}
+      {isOwn&&<div style={{marginBottom:20}}><RankProgress sales={pu.sales||0}/></div>}
+      {isOwn&&<div style={{marginBottom:36}}><VacationSettings profile={pu} onUpdate={(updated)=>{}} /></div>}
       <div style={{display:"flex",borderBottom:`1px solid ${B.border}`,marginBottom:36}}>
         {[["listings",`Hirdetések (${uls.length})`],["reviews",`Értékelések (${reviews.length})`],["wishlist",`Kívánlista (${wishlist.length})`]].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{background:"transparent",border:"none",borderBottom:tab===k?`2px solid ${ACC.gold}`:"2px solid transparent",color:tab===k?T.heading:T.faint,padding:"12px 20px",cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:tab===k?700:500,marginBottom:-1}}>{l}</button>
@@ -800,8 +920,7 @@ function PerfumeAutocomplete({ brandRef, nameRef, onBrandChange, onNameChange })
   async function searchNames(q, brand) {
     if (!q || q.length < 1) { setNameSuggestions([]); setNameOpen(false); return; }
     setLoadingName(true);
-    let query = supabase.from("perfumes").select("name").order("name").limit(12);
-    // Ha van márka megadva, csak azon belül keresünk — akár gépelt, akár dropdown
+    let query = supabase.from("perfumes").select("name, popularity").order("popularity", { ascending: false }).order("name").limit(12);
     if (brand) {
       query = query.ilike("brand", brand).ilike("name", `${q}%`);
     } else {
@@ -812,6 +931,20 @@ function PerfumeAutocomplete({ brandRef, nameRef, onBrandChange, onNameChange })
     setNameSuggestions(unique);
     setNameOpen(unique.length > 0);
     setLoadingName(false);
+  }
+
+  async function loadBrandNames(brand) {
+    const { data } = await supabase
+      .from("perfumes")
+      .select("name, popularity")
+      .ilike("brand", brand)
+      .order("popularity", { ascending: false })
+      .order("name")
+      .limit(50);
+    if (data?.length > 0) {
+      setNameSuggestions(data.map(r => r.name));
+      setNameOpen(true);
+    }
   }
 
   function handleBrandInput(e) {
@@ -826,8 +959,10 @@ function PerfumeAutocomplete({ brandRef, nameRef, onBrandChange, onNameChange })
       setNameSuggestions([]);
       setNameOpen(false);
     } else {
-      // Ideiglenesen beállítjuk a márkát, hogy a névmező szűrjön rá
+      // Beállítjuk a márkát szűrőnek, de NEM nyitjuk meg a névmezőt automatikusan
       setSelectedBrand(formatted);
+      setNameSuggestions([]);
+      setNameOpen(false);
     }
     clearTimeout(brandTimer.current);
     brandTimer.current = setTimeout(() => searchBrands(formatted), 200);
@@ -852,14 +987,8 @@ function PerfumeAutocomplete({ brandRef, nameRef, onBrandChange, onNameChange })
     setBrandSuggestions([]);
     // Frissíti a ref értéket
     if (brandRef.current) brandRef.current.value = brand;
-    // Betölti a neveket ehhez a márkához
-    supabase.from("perfumes").select("name").ilike("brand", brand).order("name").limit(50)
-      .then(({ data }) => {
-        if (data?.length > 0) {
-          setNameSuggestions(data.map(r => r.name));
-          setNameOpen(true);
-        }
-      });
+    // Betölti a neveket ehhez a márkához népszerűség szerint
+    loadBrandNames(brand);
     if (onBrandChange) onBrandChange(brand);
   }
 
@@ -933,9 +1062,7 @@ function PerfumeAutocomplete({ brandRef, nameRef, onBrandChange, onNameChange })
             onChange={handleNameInput}
             onFocus={() => {
                 if (selectedBrand && !nameQuery) {
-                  // Ha van márka de üres a névmező, betöltjük az összes nevet
-                  supabase.from("perfumes").select("name").ilike("brand", selectedBrand).order("name").limit(50)
-                    .then(({data}) => { if(data?.length>0){setNameSuggestions(data.map(r=>r.name));setNameOpen(true);}});
+                  loadBrandNames(selectedBrand);
                 } else if (nameQuery.length > 0 && nameSuggestions.length > 0) {
                   setNameOpen(true);
                 }
