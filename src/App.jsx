@@ -516,7 +516,246 @@ function MyFeaturedListings({ profile, listings }) {
   );
 }
 
-function Nav({profile,page,go,openLogin,unreadCount}) {
+
+// ─── ADMIN ────────────────────────────────────────────────────────────────────
+function useIsAdmin(userId) {
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from("admin_users")
+      .select("id")
+      .eq("user_id", userId)
+      .single()
+      .then(({ data }) => setIsAdmin(!!data));
+  }, [userId]);
+  return isAdmin;
+}
+
+function AdminPage({ curProfile, go, showToast }) {
+  const [tab, setTab]           = useState("featured");
+  const [featured, setFeatured] = useState([]);
+  const [listings, setListings] = useState([]);
+  const [users, setUsers]       = useState([]);
+  const [loading, setLoading]   = useState(true);
+
+  useEffect(() => { loadAll(); }, [tab]);
+
+  async function loadAll() {
+    setLoading(true);
+    if (tab === "featured") {
+      const { data } = await supabase
+        .from("featured_listings")
+        .select("*, profiles(name, email), listings(brand, name, icon, price)")
+        .order("created_at", { ascending: false });
+      setFeatured(data || []);
+    } else if (tab === "listings") {
+      const { data } = await supabase
+        .from("listings")
+        .select("*, profiles(name, email)")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      setListings(data || []);
+    } else if (tab === "users") {
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      setUsers(data || []);
+    }
+    setLoading(false);
+  }
+
+  async function activateFeatured(id, plan) {
+    const days = plan === "7day" ? 7 : plan === "30day" ? 30 : 30;
+    const now = new Date();
+    const expires = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    await supabase.from("featured_listings").update({
+      status:     "active",
+      starts_at:  now.toISOString(),
+      expires_at: expires.toISOString(),
+    }).eq("id", id);
+    // Listing is_featured flag
+    const feat = featured.find(f => f.id === id);
+    if (feat?.listing_id) {
+      await supabase.from("listings").update({
+        is_featured:    true,
+        featured_until: expires.toISOString(),
+      }).eq("id", feat.listing_id);
+    }
+    showToast("Kiemelés aktiválva!", "success");
+    loadAll();
+  }
+
+  async function rejectFeatured(id) {
+    await supabase.from("featured_listings").update({ status: "cancelled" }).eq("id", id);
+    showToast("Kiemelés elutasítva.", "info");
+    loadAll();
+  }
+
+  async function expireFeatured(id, listingId) {
+    await supabase.from("featured_listings").update({ status: "expired" }).eq("id", id);
+    await supabase.from("listings").update({ is_featured: false, featured_until: null }).eq("id", listingId);
+    showToast("Kiemelés lejárttá téve.", "info");
+    loadAll();
+  }
+
+  async function deleteListing(id) {
+    if (!window.confirm("Biztosan törölni?")) return;
+    await supabase.from("listings").delete().eq("id", id);
+    showToast("Hirdetés törölve.", "success");
+    loadAll();
+  }
+
+  const statusColor = { pending: ACC.gold, active: ACC.green, expired: T.faint, cancelled: ACC.red };
+  const statusLabel = { pending: "⏳ Várakozik", active: "✦ Aktív", expired: "Lejárt", cancelled: "Elutasítva" };
+  const planLabel   = { "7day": "7 nap", "30day": "30 nap", monthly: "Havi" };
+
+  const pendingCount = featured.filter(f => f.status === "pending").length;
+
+  return (
+    <div style={{ paddingTop: 62, minHeight: "100vh", background: B.canvas }}>
+      {/* Header */}
+      <div style={{ background: ACC.ink, padding: "28px clamp(20px,4vw,60px)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <p style={{ fontFamily: "'Manrope',sans-serif", fontSize: 10, color: ACC.gold, letterSpacing: 3, fontWeight: 700, marginBottom: 4 }}>ADMIN PANEL</p>
+          <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, color: B.canvas, fontWeight: 400 }}>Scentrade Admin</h1>
+        </div>
+        <button onClick={() => go("home")} style={{ background: "transparent", border: "1px solid rgba(255,255,255,.2)", color: "rgba(255,255,255,.7)", padding: "8px 18px", borderRadius: 6, cursor: "pointer", fontFamily: "'Manrope',sans-serif", fontSize: 12, fontWeight: 600 }}>← Vissza</button>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ background: B.paper, borderBottom: `1px solid ${B.border}`, padding: "0 clamp(20px,4vw,60px)", display: "flex", gap: 0 }}>
+        {[
+          ["featured", `✦ Kiemelések${pendingCount > 0 ? ` (${pendingCount} új)` : ""}`],
+          ["listings", "Hirdetések"],
+          ["users",    "Felhasználók"],
+        ].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} style={{
+            background: "transparent", border: "none",
+            borderBottom: tab === k ? `2px solid ${ACC.gold}` : "2px solid transparent",
+            color: tab === k ? T.heading : T.faint,
+            padding: "14px 20px", cursor: "pointer",
+            fontFamily: "'Manrope',sans-serif", fontSize: 12,
+            fontWeight: tab === k ? 700 : 500, marginBottom: -1,
+            whiteSpace: "nowrap",
+          }}>{l}</button>
+        ))}
+      </div>
+
+      <div style={{ padding: "32px clamp(20px,4vw,60px)", maxWidth: 1200, margin: "0 auto" }}>
+        {loading && <p style={{ fontFamily: "'Manrope',sans-serif", fontSize: 13, color: T.faint }}>Betöltés...</p>}
+
+        {/* ── KIEMELÉSEK TAB ── */}
+        {!loading && tab === "featured" && (
+          <div>
+            <p style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.faint, letterSpacing: 1, fontWeight: 600, marginBottom: 20 }}>{featured.length} KIEMELÉSI KÉRELEM</p>
+            {featured.length === 0 && <p style={{ fontFamily: "'Manrope',sans-serif", fontSize: 13, color: T.faint }}>Nincs kiemelési kérelem.</p>}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {featured.map(f => (
+                <div key={f.id} style={{ background: B.paper, border: `1px solid ${f.status === "pending" ? ACC.gold + "50" : B.border}`, borderRadius: 10, padding: "18px 22px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 28, flexShrink: 0 }}>{f.listings?.icon || "🫙"}</span>
+                  <div style={{ flex: 1, minWidth: 180 }}>
+                    <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 13, color: T.body, fontWeight: 700 }}>
+                      {f.listings?.brand} {f.listings?.name}
+                    </div>
+                    <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.muted, marginTop: 2 }}>
+                      {f.profiles?.name} · {f.profiles?.email}
+                    </div>
+                    <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.faint, marginTop: 2 }}>
+                      {planLabel[f.plan]} · {f.price_huf} Ft · {new Date(f.created_at).toLocaleDateString("hu-HU", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                    {f.expires_at && f.status === "active" && (
+                      <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: ACC.green, marginTop: 2 }}>
+                        ✦ Aktív – {new Date(f.expires_at).toLocaleDateString("hu-HU", { month: "short", day: "numeric" })}-ig
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ fontFamily: "'Manrope',sans-serif", fontSize: 10, color: statusColor[f.status], fontWeight: 700, whiteSpace: "nowrap" }}>
+                    {statusLabel[f.status]}
+                  </span>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {f.status === "pending" && (
+                      <>
+                        <button onClick={() => activateFeatured(f.id, f.plan)}
+                          style={{ background: ACC.green, border: "none", color: "#fff", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontFamily: "'Manrope',sans-serif", fontSize: 11, fontWeight: 700 }}>
+                          ✓ Aktivál
+                        </button>
+                        <button onClick={() => rejectFeatured(f.id)}
+                          style={{ background: "transparent", border: `1px solid ${ACC.red}40`, color: ACC.red, padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontFamily: "'Manrope',sans-serif", fontSize: 11, fontWeight: 600 }}>
+                          ✕ Elutasít
+                        </button>
+                      </>
+                    )}
+                    {f.status === "active" && (
+                      <button onClick={() => expireFeatured(f.id, f.listing_id)}
+                        style={{ background: "transparent", border: `1px solid ${B.borderDk}`, color: T.muted, padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontFamily: "'Manrope',sans-serif", fontSize: 11 }}>
+                        Lejár
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── HIRDETÉSEK TAB ── */}
+        {!loading && tab === "listings" && (
+          <div>
+            <p style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.faint, letterSpacing: 1, fontWeight: 600, marginBottom: 20 }}>{listings.length} HIRDETÉS</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {listings.map(l => (
+                <div key={l.id} style={{ background: B.paper, border: `1px solid ${B.border}`, borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 22, flexShrink: 0 }}>{l.icon || "🫙"}</span>
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 13, color: T.body, fontWeight: 600 }}>{l.brand} {l.name}</div>
+                    <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.muted }}>{l.profiles?.name} · {(l.price || 0).toLocaleString("hu-HU")} Ft</div>
+                  </div>
+                  <span style={{ fontFamily: "'Manrope',sans-serif", fontSize: 10, color: l.status === "sold" ? ACC.green : l.status === "pending" ? ACC.gold : T.faint, fontWeight: 700 }}>
+                    {l.status === "sold" ? "✓ ELADVA" : l.status === "pending" ? "⏳ FÜGGŐBEN" : "AKTÍV"}
+                  </span>
+                  <span style={{ fontFamily: "'Manrope',sans-serif", fontSize: 10, color: T.faint }}>
+                    {new Date(l.created_at).toLocaleDateString("hu-HU", { month: "short", day: "numeric" })}
+                  </span>
+                  <button onClick={() => deleteListing(l.id)}
+                    style={{ background: "transparent", border: `1px solid ${ACC.red}30`, color: ACC.red, padding: "6px 12px", borderRadius: 5, cursor: "pointer", fontFamily: "'Manrope',sans-serif", fontSize: 10, fontWeight: 600, flexShrink: 0 }}>
+                    Töröl
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── FELHASZNÁLÓK TAB ── */}
+        {!loading && tab === "users" && (
+          <div>
+            <p style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.faint, letterSpacing: 1, fontWeight: 600, marginBottom: 20 }}>{users.length} FELHASZNÁLÓ</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {users.map(u => (
+                <div key={u.id} style={{ background: B.paper, border: `1px solid ${B.border}`, borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                  <Ava u={u} size={36} />
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 13, color: T.body, fontWeight: 600 }}>{u.name}</div>
+                    <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.muted }}>{u.email} · 📍{u.location}</div>
+                  </div>
+                  <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.faint, textAlign: "right" }}>
+                    <div>{u.sales || 0} eladás</div>
+                    <div>{new Date(u.created_at).toLocaleDateString("hu-HU", { month: "short", day: "numeric" })}</div>
+                  </div>
+                  <RankBadge sales={u.sales || 0} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Nav({profile,page,go,openLogin,unreadCount,isAdmin=false}) {
   const [scrolled,setScrolled]=useState(false);
   const isMob=useIsMobile();
   useEffect(()=>{const fn=()=>setScrolled(window.scrollY>20);window.addEventListener("scroll",fn);return()=>window.removeEventListener("scroll",fn);},[]);
@@ -542,6 +781,7 @@ function Nav({profile,page,go,openLogin,unreadCount}) {
               <Ava u={profile} size={26}/>
               {!isMob&&<span style={{fontFamily:"'Manrope',sans-serif",fontSize:12,fontWeight:600,color:T.body}}>{profile.name?.split(" ")[0]}</span>}
             </button>
+            {isAdmin&&<button onClick={()=>go("admin")} style={{background:page==="admin"?ACC.goldPale:"transparent",border:`1px solid ${page==="admin"?ACC.gold:B.borderDk}`,color:page==="admin"?ACC.gold:T.muted,padding:"6px 12px",borderRadius:5,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:10,fontWeight:700,letterSpacing:1,marginLeft:4}}>ADMIN</button>}
           </>
         ):(
           <button onClick={openLogin} style={{background:"transparent",border:`1px solid ${B.borderDk}`,color:T.body,padding:isMob?"7px 12px":"8px 18px",borderRadius:6,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:isMob?11:12,fontWeight:600,marginLeft:isMob?4:8}}>Belépés</button>
@@ -1564,6 +1804,7 @@ function Login({go,showToast}) {
 export default function App() {
   const{user,profile,loading}=useAuth();
   const presenceMap=usePresence(profile?.id);
+  const isAdmin=useIsAdmin(profile?.id);
   const [page,setPage]=useState(()=>sessionStorage.getItem("sc_page")||"home");
   const [listings,setListings]=useState([]);const [profiles,setProfiles]=useState({});
   const [selId,setSelId]=useState(()=>sessionStorage.getItem("sc_selId")||null);
@@ -1589,6 +1830,7 @@ export default function App() {
   async function signOut(){await supabase.auth.signOut();setPage("home");setSelId(null);setProfileId(null);setACW(null);setUnread(0);sessionStorage.clear();window.scrollTo(0,0);}
   function go(p){
     if(p==="login"){setPage("login");window.scrollTo(0,0);return;}
+    if(p==="admin"){setPage("admin");window.scrollTo(0,0);return;}
     if((p==="sell"||p==="messages")&&!profile){setPage("guest_wall");window.scrollTo(0,0);return;}
     setPage(p);window.scrollTo(0,0);
   }
@@ -1619,7 +1861,7 @@ export default function App() {
           .sc-nav-links{display:none!important;}
         }
       `}</style>
-      <Nav profile={profile||(user?{name:user.email}:null)} page={page} go={go} openLogin={()=>go("login")} unreadCount={unread}/>
+      <Nav profile={profile||(user?{name:user.email}:null)} page={page} go={go} openLogin={()=>go("login")} unreadCount={unread} isAdmin={isAdmin}/>
       <ToastContainer/>
       {page==="home"        &&<Home go={go} listings={listings} profiles={allProfiles} setSelId={setSelId}/>}
       {page==="market"      &&<Market listings={listings} profiles={allProfiles} go={go} setSelId={setSelId}/>}
@@ -1630,6 +1872,8 @@ export default function App() {
       {page==="sell"        &&profile    &&<Sell curProfile={profile} go={go} setListings={setListings} showToast={showToast}/>}
       {page==="guest_wall"  &&            <GuestWall go={go}/>}
       {page==="login"       &&            <Login go={go} showToast={showToast}/>}
+      {page==="admin"       && isAdmin      && <AdminPage curProfile={profile} go={go} showToast={showToast}/>}
+      {page==="admin"       && !isAdmin     && profile && <div style={{paddingTop:62,display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh"}}><p style={{fontFamily:"'Manrope',sans-serif",color:T.faint}}>Nincs jogosultságod.</p></div>}
     </div>
   );
 }
