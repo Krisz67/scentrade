@@ -589,34 +589,29 @@ function Card({l,u,onClick,featured=false}) {
 }
 
 function Home({go,listings,profiles,setSelId}) {
-  const [featuredIds, setFeaturedIds] = useState([]);
+  const [featuredIds,setFeaturedIds]=useState([]);
 
-  useEffect(() => {
-    // Aktív kiemelések betöltése
+  useEffect(()=>{
     supabase.from("featured_listings")
       .select("listing_id")
       .eq("status","active")
-      .gt("expires_at", new Date().toISOString())
-      .then(({data}) => {
-        if (data) setFeaturedIds(data.map(f => f.listing_id));
-      });
-  }, []);
+      .gt("expires_at",new Date().toISOString())
+      .then(({data})=>{if(data)setFeaturedIds(data.map(f=>f.listing_id));});
+  },[]);
 
-  // Kiemelt hirdetések – Supabase-ből + fallback első 4 aktív
-  const featuredListings = featuredIds.length > 0
-    ? listings.filter(l => featuredIds.includes(l.id) && l.status !== "sold")
-    : listings.filter(l => l.type==="sell" && l.status!=="sold").slice(0,4);
-
-  const decants = listings.filter(l=>l.listing_type==="decant"&&l.status!=="sold").slice(0,3);
-  const regular = listings.filter(l=>l.type==="sell"&&l.status!=="sold"&&!featuredIds.includes(l.id)).slice(0,8);
+  const featuredListings=featuredIds.length>0
+    ? listings.filter(l=>featuredIds.includes(l.id)&&l.status!=="sold")
+    : [];
+  const decants=listings.filter(l=>l.listing_type==="decant"&&l.status!=="sold").slice(0,3);
+  const regular=listings.filter(l=>l.type==="sell"&&l.status!=="sold"&&!featuredIds.includes(l.id)).slice(0,8);
 
   function openDetail(id){setSelId(id);go("detail");}
+
   return(
     <div style={{paddingTop:62}}>
+      {/* ── HERO ── */}
       <section style={{minHeight:"92vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden",padding:"100px 40px 80px",background:B.canvas,width:"100%"}}>
-        {/* Finom rács háttér */}
         <div style={{position:"absolute",inset:0,backgroundImage:`linear-gradient(${B.border}40 1px,transparent 1px),linear-gradient(90deg,${B.border}40 1px,transparent 1px)`,backgroundSize:"80px 80px",pointerEvents:"none"}}/>
-        {/* Arany folt középen */}
         <div style={{position:"absolute",top:"40%",left:"50%",transform:"translate(-50%,-50%)",width:"60vw",height:"60vw",maxWidth:700,maxHeight:700,background:`radial-gradient(ellipse,${ACC.gold}08 0%,transparent 70%)`,pointerEvents:"none"}}/>
         <p style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:ACC.gold,letterSpacing:6,marginBottom:32,fontWeight:700,textTransform:"uppercase",position:"relative"}}>Magyar Parfüm Közösség</p>
         <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(56px,9vw,120px)",fontWeight:400,color:T.heading,lineHeight:.95,marginBottom:24,letterSpacing:-2,position:"relative",maxWidth:900}}>
@@ -627,38 +622,90 @@ function Home({go,listings,profiles,setSelId}) {
           Niche és designer parfümök, <strong style={{color:T.body,fontWeight:600}}>dekantok</strong> és teljes üvegek biztonságos adásvételéhez.
         </p>
         <div style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center",position:"relative"}}>
-          <button onClick={()=>go("market")} style={{background:ACC.ink,border:"none",color:B.canvas,padding:"17px 52px",borderRadius:5,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:"clamp(13px,1.4vw,15px)",fontWeight:700,letterSpacing:.8,boxShadow:"0 6px 24px rgba(0,0,0,.15)",transition:"transform .15s,box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 10px 32px rgba(0,0,0,.2)"}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 6px 24px rgba(0,0,0,.15)"}}>Böngéssz a piacon →</button>
-          <button onClick={()=>go("sell")} style={{background:"transparent",border:`1.5px solid ${B.borderDk}`,color:T.body,padding:"17px 52px",borderRadius:5,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:"clamp(13px,1.4vw,15px)",fontWeight:600,letterSpacing:.5,transition:"border-color .15s,color .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=ACC.gold;e.currentTarget.style.color=ACC.gold}} onMouseLeave={e=>{e.currentTarget.style.borderColor=B.borderDk;e.currentTarget.style.color=T.body}}>Hirdetést feladok</button>
+          <button onClick={()=>go("market")}
+            style={{background:ACC.ink,border:"none",color:B.canvas,padding:"17px 52px",borderRadius:5,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:"clamp(13px,1.4vw,15px)",fontWeight:700,letterSpacing:.8,boxShadow:"0 6px 24px rgba(0,0,0,.15)",transition:"transform .15s,box-shadow .15s"}}
+            onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 10px 32px rgba(0,0,0,.2)"}}
+            onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 6px 24px rgba(0,0,0,.15)"}}>
+            Böngéssz a piacon →
+          </button>
+          <button onClick={()=>go("sell")}
+            style={{background:"transparent",border:`1.5px solid ${B.borderDk}`,color:T.body,padding:"17px 52px",borderRadius:5,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:"clamp(13px,1.4vw,15px)",fontWeight:600,letterSpacing:.5,transition:"border-color .15s,color .15s"}}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor=ACC.gold;e.currentTarget.style.color=ACC.gold}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor=B.borderDk;e.currentTarget.style.color=T.body}}>
+            Hirdetést feladok
+          </button>
         </div>
       </section>
-      <div style={{background:ACC.ink,padding:"20px clamp(16px,5vw,60px)",display:"flex",gap:"clamp(24px,5vw,60px)",justifyContent:"center",flexWrap:"wrap"}}>
-        {[["Hirdetés","élőben"],["Értékelés","közösségtől"],["Csere","lehetséges"]].map(([n,l])=>(
-          <div key={l} style={{textAlign:"center"}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:ACC.goldWarm,fontWeight:400}}>∞</div><div style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:"rgba(250,248,244,.5)",letterSpacing:2,fontWeight:600,textTransform:"uppercase",marginTop:3}}>{l}</div></div>
+
+      {/* ── STATS SÁVA ── */}
+      <div style={{background:ACC.ink,padding:"28px clamp(24px,5vw,80px)",display:"flex",gap:0,width:"100%"}}>
+        {[["Hirdetés","élőben"],["Értékelés","közösségtől"],["Csere","lehetséges"]].map(([n,l],i,arr)=>(
+          <div key={l} style={{flex:1,textAlign:"center",borderRight:i<arr.length-1?`1px solid rgba(255,255,255,.08)`:"none",padding:"6px 12px"}}>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(22px,3vw,32px)",color:ACC.goldWarm,fontWeight:400,marginBottom:4}}>∞</div>
+            <div style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:"rgba(250,248,244,.45)",letterSpacing:3,fontWeight:700,textTransform:"uppercase"}}>{l}</div>
+          </div>
         ))}
       </div>
-      {featured.length>0&&(
-        <section style={{padding:"clamp(32px,6vw,72px) clamp(24px,5vw,80px)",maxWidth:1400,margin:"0 auto",width:"100%"}}>
-          <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,alignItems:"baseline",marginBottom:40}}>
-            <div><p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8}}>KIEMELTEK</p><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:36,color:T.heading,fontWeight:400}}>Friss eladások</h2></div>
-            <button onClick={()=>go("market")} style={{background:"none",border:`1px solid ${B.borderDk}`,color:T.muted,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:11,letterSpacing:1,fontWeight:600,padding:"7px 16px",borderRadius:4}}>MIND →</button>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(272px,1fr))",gap:18}}>
-            {featured.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>openDetail(l.id)}/>)}
-          </div>
-        </section>
-      )}
-      {decants.length>0&&(
-        <section style={{padding:"0 clamp(24px,5vw,80px) 80px",maxWidth:1400,margin:"0 auto",width:"100%"}}>
-          <div style={{background:B.paper,border:`1px solid ${B.border}`,borderRadius:12,padding:"clamp(24px,4vw,44px) clamp(16px,3vw,40px)"}}>
-            <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8}}>DEKANTOK</p>
-            <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:32,color:T.heading,fontWeight:400,marginBottom:30}}>Kipróbálnád először?</h2>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(258px,100%),1fr))",gap:14}}>
-              {decants.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>openDetail(l.id)}/>)}
+
+      {/* ── KIEMELT HIRDETÉSEK ── */}
+      {featuredListings.length>0&&(
+        <section style={{padding:"clamp(40px,5vw,72px) clamp(24px,5vw,80px)",width:"100%",background:B.canvas}}>
+          <div style={{maxWidth:1400,margin:"0 auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,alignItems:"center",marginBottom:32}}>
+              <div style={{display:"flex",alignItems:"center",gap:14}}>
+                <div style={{width:3,height:32,background:ACC.gold,borderRadius:2}}/>
+                <div>
+                  <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>✦ Kiemelt hirdetések</p>
+                  <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(24px,3vw,36px)",color:T.heading,fontWeight:400}}>Prémium eladások</h2>
+                </div>
+              </div>
+              <button onClick={()=>go("market")} style={{background:"none",border:`1px solid ${B.borderDk}`,color:T.muted,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:11,letterSpacing:1,fontWeight:600,padding:"8px 18px",borderRadius:5,whiteSpace:"nowrap"}}>MIND →</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:20}}>
+              {featuredListings.map(l=>(
+                <div key={l.id} style={{position:"relative"}}>
+                  <div style={{position:"absolute",inset:-1,borderRadius:11,background:`linear-gradient(135deg,${ACC.gold}40,${ACC.gold}15,${ACC.gold}40)`,zIndex:0,pointerEvents:"none"}}/>
+                  <div style={{position:"relative",zIndex:1}}>
+                    <Card l={l} u={profiles[l.user_id]} onClick={()=>openDetail(l.id)} featured={true}/>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
       )}
-      <footer style={{borderTop:`1px solid ${B.border}`,padding:"24px clamp(16px,4vw,48px)",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+
+      {/* ── FRISS ELADÁSOK ── */}
+      {regular.length>0&&(
+        <section style={{padding:featuredListings.length>0?"0 clamp(24px,5vw,80px) clamp(32px,5vw,64px)":"clamp(40px,5vw,72px) clamp(24px,5vw,80px)",width:"100%"}}>
+          <div style={{maxWidth:1400,margin:"0 auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,alignItems:"center",marginBottom:28}}>
+              <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(22px,3vw,32px)",color:T.heading,fontWeight:400}}>Friss eladások</h2>
+              <button onClick={()=>go("market")} style={{background:"none",border:`1px solid ${B.borderDk}`,color:T.muted,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:11,letterSpacing:1,fontWeight:600,padding:"8px 18px",borderRadius:5}}>MIND →</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:20}}>
+              {regular.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>openDetail(l.id)}/>)}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── DEKANTOK ── */}
+      {decants.length>0&&(
+        <section style={{padding:"0 clamp(24px,5vw,80px) 80px",width:"100%"}}>
+          <div style={{maxWidth:1400,margin:"0 auto"}}>
+            <div style={{background:B.paper,border:`1px solid ${B.border}`,borderRadius:12,padding:"clamp(24px,4vw,44px) clamp(16px,3vw,40px)"}}>
+              <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:ACC.gold,letterSpacing:3,fontWeight:700,marginBottom:8}}>DEKANTOK</p>
+              <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:32,color:T.heading,fontWeight:400,marginBottom:30}}>Kipróbálnád először?</h2>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(258px,100%),1fr))",gap:14}}>
+                {decants.map(l=><Card key={l.id} l={l} u={profiles[l.user_id]} onClick={()=>openDetail(l.id)}/>)}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <footer style={{borderTop:`1px solid ${B.border}`,padding:"28px clamp(24px,5vw,80px)",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12,width:"100%"}}>
         <span style={{fontFamily:"'Playfair Display',serif",fontSize:16,color:T.heading,fontWeight:600,letterSpacing:2}}>SCENTRADE</span>
         <p style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint,letterSpacing:1}}>© 2025 · Parfüm közösségi platform</p>
       </footer>
@@ -666,8 +713,6 @@ function Home({go,listings,profiles,setSelId}) {
   );
 }
 
-
-// ─── MARKET SEARCH AUTOCOMPLETE ───────────────────────────────────────────────
 function MarketSearch({ value, onChange }) {
   const [suggestions, setSuggestions] = useState([]);
   const [open, setOpen] = useState(false);
