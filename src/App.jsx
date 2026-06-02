@@ -601,9 +601,19 @@ function AdminPage({ curProfile, go, showToast }) {
   }
 
   async function deleteListing(id) {
-    if (!window.confirm("Biztosan törölni?")) return;
-    await supabase.from("listings").delete().eq("id", id);
+    if (!window.confirm("Biztosan törölöd ezt a hirdetést?")) return;
+    const { error } = await supabase.from("listings").delete().eq("id", id);
+    if (error) {
+      showToast("Hiba: " + error.message, "error");
+      return;
+    }
     showToast("Hirdetés törölve.", "success");
+    loadAll();
+  }
+
+  async function banUser(userId, banned) {
+    await supabase.from("profiles").update({ banned }).eq("id", userId);
+    showToast(banned ? "Felhasználó kitiltva." : "Kitiltás feloldva.", banned ? "error" : "success");
     loadAll();
   }
 
@@ -737,7 +747,10 @@ function AdminPage({ curProfile, go, showToast }) {
                 <div key={u.id} style={{ background: B.paper, border: `1px solid ${B.border}`, borderRadius: 8, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                   <Ava u={u} size={36} />
                   <div style={{ flex: 1, minWidth: 160 }}>
-                    <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 13, color: T.body, fontWeight: 600 }}>{u.name}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 13, color: u.banned ? ACC.red : T.body, fontWeight: 600 }}>{u.name}</div>
+                      {u.banned && <span style={{ fontFamily:"'Manrope',sans-serif", fontSize:9, color:ACC.red, fontWeight:700, background:ACC.redPale, border:`1px solid ${ACC.red}30`, borderRadius:3, padding:"2px 6px", letterSpacing:1 }}>KITILTVA</span>}
+                    </div>
                     <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.muted }}>{u.email} · 📍{u.location}</div>
                   </div>
                   <div style={{ fontFamily: "'Manrope',sans-serif", fontSize: 11, color: T.faint, textAlign: "right" }}>
@@ -745,6 +758,17 @@ function AdminPage({ curProfile, go, showToast }) {
                     <div>{new Date(u.created_at).toLocaleDateString("hu-HU", { month: "short", day: "numeric" })}</div>
                   </div>
                   <RankBadge sales={u.sales || 0} />
+                  <button onClick={() => banUser(u.id, !u.banned)}
+                    style={{
+                      background: u.banned ? ACC.greenPale : ACC.redPale,
+                      border: `1px solid ${u.banned ? ACC.green + "40" : ACC.red + "40"}`,
+                      color: u.banned ? ACC.green : ACC.red,
+                      padding: "6px 12px", borderRadius: 5, cursor: "pointer",
+                      fontFamily: "'Manrope',sans-serif", fontSize: 10, fontWeight: 700,
+                      flexShrink: 0, whiteSpace: "nowrap",
+                    }}>
+                    {u.banned ? "✓ Kitiltás felold" : "⊘ Kitilt"}
+                  </button>
                 </div>
               ))}
             </div>
@@ -1036,7 +1060,10 @@ function Market({listings,profiles,go,setSelId}) {
   const [q,setQ]=useState("");const [cat,setCat]=useState("Összes");const [typeF,setTypeF]=useState("all");
   const [listF,setListF]=useState("all");const [sort,setSort]=useState("newest");const [hideS,setHideS]=useState(true);
   const filtered=listings.filter(l=>{
-    if(hideS&&l.status==="sold")return false;const sq=q.toLowerCase();
+    if(hideS&&l.status==="sold")return false;
+    // Kitiltott felhasználók hirdetéseit ne mutassuk
+    if(profiles[l.user_id]?.banned) return false;
+    const sq=q.toLowerCase();
     return(!sq||(l.brand||"").toLowerCase().includes(sq)||(l.name||"").toLowerCase().includes(sq))&&(cat==="Összes"||l.category===cat)&&(typeF==="all"||l.type===typeF)&&(listF==="all"||l.listing_type===listF);
   }).sort((a,b)=>{
     // Kiemelt hirdetések mindig elöl
