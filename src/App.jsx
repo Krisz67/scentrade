@@ -85,6 +85,13 @@ function OnlineBadge({presenceMap,userId,showLabel=false}) {
 // ─── VACATION BADGE ───────────────────────────────────────────────────────────
 function VacationBadge({ profile, size = "sm" }) {
   if (!profile?.vacation_mode) return null;
+  // Ne mutassuk ha már lejárt
+  if (profile.vacation_until) {
+    const until = new Date(profile.vacation_until);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    if (until < today) return null;
+  }
   const until = profile.vacation_until
     ? new Date(profile.vacation_until).toLocaleDateString("hu-HU", { month: "long", day: "numeric" })
     : null;
@@ -104,8 +111,12 @@ function VacationBadge({ profile, size = "sm" }) {
 
 // Vacation mode beállító – csak saját profil
 function VacationSettings({ profile, onUpdate }) {
-  const [active, setActive] = useState(profile?.vacation_mode || false);
-  const [until, setUntil] = useState(profile?.vacation_until || "");
+  // Lejárat ellenőrzés betöltéskor
+  const isExpired = profile?.vacation_until
+    ? new Date(profile.vacation_until) < new Date(new Date().setHours(0,0,0,0))
+    : false;
+  const [active, setActive] = useState(profile?.vacation_mode && !isExpired ? true : false);
+  const [until, setUntil] = useState(!isExpired ? (profile?.vacation_until || "") : "");
   const [saving, setSaving] = useState(false);
 
   async function save(newActive, newUntil) {
@@ -1846,10 +1857,15 @@ export default function App() {
   useEffect(()=>{if(profile){loadUnread();return setupUnreadSub();}},[profile?.id]);
 
   async function loadListings(){
+    // Lejárt szabadságok törlése (SECURITY DEFINER függvény, megkerüli RLS-t)
+    supabase.rpc("expire_vacations").then(()=>{});
     const{data}=await supabase.from("listings").select("*").order("created_at",{ascending:false});
     if(!data)return;setListings(data);
     const ids=[...new Set(data.map(l=>l.user_id))];
-    if(ids.length){const{data:pd}=await supabase.from("profiles").select("*").in("id",ids);if(pd){const m={};pd.forEach(p=>{m[p.id]=p;});setProfiles(m);}}
+    if(ids.length){
+      const{data:pd}=await supabase.from("profiles").select("*").in("id",ids);
+      if(pd){const m={};pd.forEach(p=>{m[p.id]=p;});setProfiles(m);}
+    }
   }
   async function loadUnread(){if(!profile)return;const{count}=await supabase.from("messages").select("*",{count:"exact",head:true}).eq("to_user",profile.id).eq("read",false);setUnread(count||0);}
   function setupUnreadSub(){if(!profile)return;const sub=supabase.channel("unread-"+profile.id).on("postgres_changes",{event:"*",schema:"public",table:"messages",filter:`to_user=eq.${profile.id}`},()=>loadUnread()).subscribe();return()=>supabase.removeChannel(sub);}
