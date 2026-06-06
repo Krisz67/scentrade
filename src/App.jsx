@@ -36,7 +36,29 @@ function useAuth() {
     const{data:{subscription}}=supabase.auth.onAuthStateChange((_e,session)=>{setUser(session?.user??null);if(session?.user)fetchProfile(session.user.id);else{setProfile(null);setLoading(false);}});
     return()=>subscription.unsubscribe();
   },[]);
-  async function fetchProfile(uid){const{data}=await supabase.from("profiles").select("*").eq("id",uid).single();setProfile(data);setLoading(false);}
+  async function fetchProfile(uid) {
+    const { data, error } = await supabase.from("profiles").select("*").eq("id", uid).single();
+    if (error || !data) { setLoading(false); return; }
+    // Kitiltott user kijelentkeztetése
+    if (data.banned) {
+      await supabase.auth.signOut();
+      setUser(null); setProfile(null); setLoading(false);
+      alert("Ez a fiók ki lett tiltva. Kérdéssel fordulj az adminhoz.");
+      return;
+    }
+    // Lejárt szabadság automatikus törlése
+    if (data.vacation_mode && data.vacation_until) {
+      const until = new Date(data.vacation_until);
+      const today = new Date(); today.setHours(0,0,0,0);
+      if (until < today) {
+        await supabase.rpc("expire_vacations").catch(()=>{});
+        data.vacation_mode = false;
+        data.vacation_until = null;
+      }
+    }
+    setProfile(data);
+    setLoading(false);
+  }
   return{user,profile,loading};
 }
 
@@ -828,36 +850,61 @@ function Nav({profile,page,go,openLogin,unreadCount,isAdmin=false}) {
 
 function Card({l,u,onClick,featured=false}) {
   const [hov,setHov]=useState(false);
+  const [imgErr,setImgErr]=useState(false);
   const isDecant=l.listing_type==="decant",isBuy=l.type==="buy",isSold=l.status==="sold",isPend=l.status==="pending";
+  const hasImg=l.image_urls?.length>0&&!imgErr;
+  const topBannerH=isSold||isPend||(!isSold&&!isPend&&u?.vacation_mode)?28:0;
   return(
     <div onClick={onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
-      style={{background:hov?B.warm:B.paper,border:`1px solid ${hov?B.borderDk:B.border}`,borderRadius:10,padding:"26px 22px 20px",cursor:onClick?"pointer":"default",transition:"all .22s ease",transform:hov?"translateY(-2px)":"none",boxShadow:hov?"0 8px 32px rgba(0,0,0,.07)":"0 1px 4px rgba(0,0,0,.03)",opacity:isSold?.55:1,position:"relative",overflow:"hidden"}}>
-      {(isSold||isPend)&&<div style={{position:"absolute",top:0,left:0,right:0,padding:"4px 0",textAlign:"center",background:isSold?"#f2faf6":"#fefaf0",borderBottom:`1px solid ${isSold?ACC.green:ACC.gold}28`,fontFamily:"'Manrope',sans-serif",fontSize:9,letterSpacing:1.5,color:isSold?ACC.green:ACC.gold,fontWeight:700}}>{isSold?"✓ ELADVA":"⏳ FÜGGŐBEN"}</div>}
-      {!isSold&&!isPend&&u?.vacation_mode&&<div style={{position:"absolute",top:0,left:0,right:0,padding:"4px 8px",textAlign:"center",background:"#fffdf4",borderBottom:`1px solid ${ACC.gold}28`,fontFamily:"'Manrope',sans-serif",fontSize:9,letterSpacing:.5,color:ACC.gold,fontWeight:700}}>🌴 {u.vacation_until?`Nem postáz ${new Date(u.vacation_until).toLocaleDateString("hu-HU",{month:"short",day:"numeric"})}-ig`:"Szabadságon"}</div>}
-      <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap",marginTop:(isSold||isPend)?24:0}}>
-        {featured&&<FeaturedBadge/>}
-        <Pill text={isBuy?"Keresett":"Eladó"} bg={isBuy?"#eef4fb":"#faf8f0"} col={isBuy?"#4a78b0":ACC.gold}/>
-        <Pill text={isDecant?"Dekant":"Teljes"} bg={isDecant?"#fff5ee":"#f2faf6"} col={isDecant?"#c0724a":ACC.green}/>
-        {l.condition&&<Pill text={COND[l.condition]} bg={COND_COLOR[l.condition]+"12"} col={COND_COLOR[l.condition]}/>}
-        {l.swap_ok&&<Pill text="Csere OK" bg="#f5f0fb" col="#7a5ab0"/>}
-      </div>
-      <div style={{fontSize:40,marginBottom:12}}>{l.icon||"🫙"}</div>
-      <div style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:2.5,marginBottom:3,fontWeight:600}}>{(l.brand||"").toUpperCase()}</div>
-      <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:T.heading,lineHeight:1.2,marginBottom:6}}>{l.name}</div>
-      <div style={{fontSize:12,color:T.faint,marginBottom:14,fontFamily:"'Manrope',sans-serif"}}>{isDecant?`${l.decant_ml}ml dekant`:`${l.size||""}${l.fill?` · ${l.fill}% tele`:""}`}</div>
-      {!isDecant&&l.fill&&<BottleCompact pct={l.fill}/>}
-      <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:T.heading,marginBottom:16,marginTop:"auto",fontWeight:600}}>
-        {(l.price||0).toLocaleString("hu-HU")} Ft
-        {isDecant&&<span style={{fontSize:12,color:T.faint,fontFamily:"'Manrope',sans-serif",marginLeft:6}}>/ {l.decant_ml}ml</span>}
-      </div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:14,borderTop:`1px solid ${B.border}`}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <Ava u={u} size={24}/>
-          <span style={{fontSize:12,color:T.muted,fontFamily:"'Manrope',sans-serif",fontWeight:500}}>{u?.name?.split(" ")[0]||"?"}</span>
-          {u?.verified&&<span style={{color:ACC.gold,fontSize:11}}>✓</span>}
-          <RankBadge sales={u?.sales||0}/>
+      style={{background:hov?B.warm:B.paper,border:`1px solid ${hov?B.borderDk:B.border}`,borderRadius:10,cursor:onClick?"pointer":"default",transition:"all .22s ease",transform:hov?"translateY(-2px)":"none",boxShadow:hov?"0 8px 32px rgba(0,0,0,.07)":"0 1px 4px rgba(0,0,0,.03)",opacity:isSold?.55:1,position:"relative",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+      {/* Banner sávok */}
+      {(isSold||isPend)&&<div style={{padding:"4px 0",textAlign:"center",background:isSold?"#f2faf6":"#fefaf0",borderBottom:`1px solid ${isSold?ACC.green:ACC.gold}28`,fontFamily:"'Manrope',sans-serif",fontSize:9,letterSpacing:1.5,color:isSold?ACC.green:ACC.gold,fontWeight:700,flexShrink:0}}>{isSold?"✓ ELADVA":"⏳ FÜGGŐBEN"}</div>}
+      {!isSold&&!isPend&&u?.vacation_mode&&u?.vacation_until&&new Date(u.vacation_until)>=new Date(new Date().setHours(0,0,0,0))&&<div style={{padding:"4px 8px",textAlign:"center",background:"#fffdf4",borderBottom:`1px solid ${ACC.gold}28`,fontFamily:"'Manrope',sans-serif",fontSize:9,letterSpacing:.5,color:ACC.gold,fontWeight:700,flexShrink:0}}>🌴 Nem postáz {new Date(u.vacation_until).toLocaleDateString("hu-HU",{month:"short",day:"numeric"})}-ig</div>}
+      {/* Kép vagy ikon */}
+      {hasImg ? (
+        <div style={{width:"100%",height:180,position:"relative",overflow:"hidden",flexShrink:0}}>
+          <img src={l.image_urls[0]} onError={()=>setImgErr(true)} alt={l.name}
+            style={{width:"100%",height:"100%",objectFit:"cover",display:"block",transition:"transform .3s ease"}}
+            onMouseEnter={e=>e.currentTarget.style.transform="scale(1.03)"}
+            onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
+          />
+          {l.image_urls.length>1&&(
+            <div style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,.5)",borderRadius:4,padding:"2px 7px",fontFamily:"'Manrope',sans-serif",fontSize:10,color:"#fff",fontWeight:600}}>
+              +{l.image_urls.length-1} kép
+            </div>
+          )}
         </div>
-        <span style={{fontSize:10,color:T.faint,fontFamily:"'Manrope',sans-serif"}}>👁 {l.views||0}</span>
+      ) : (
+        <div style={{width:"100%",height:120,display:"flex",alignItems:"center",justifyContent:"center",background:B.warm,flexShrink:0}}>
+          <span style={{fontSize:48,opacity:.6}}>{l.icon||"🫙"}</span>
+        </div>
+      )}
+      {/* Tartalom */}
+      <div style={{padding:"16px 18px 16px",display:"flex",flexDirection:"column",flex:1}}>
+        <div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap"}}>
+          {featured&&<FeaturedBadge/>}
+          <Pill text={isBuy?"Keresett":"Eladó"} bg={isBuy?"#eef4fb":"#faf8f0"} col={isBuy?"#4a78b0":ACC.gold}/>
+          <Pill text={isDecant?"Dekant":"Teljes"} bg={isDecant?"#fff5ee":"#f2faf6"} col={isDecant?"#c0724a":ACC.green}/>
+          {l.condition&&<Pill text={COND[l.condition]} bg={COND_COLOR[l.condition]+"12"} col={COND_COLOR[l.condition]}/>}
+          {l.swap_ok&&<Pill text="Csere OK" bg="#f5f0fb" col="#7a5ab0"/>}
+        </div>
+      <div style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:2.5,marginBottom:3,fontWeight:600}}>{(l.brand||"").toUpperCase()}</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:T.heading,lineHeight:1.2,marginBottom:6}}>{l.name}</div>
+        <div style={{fontSize:12,color:T.faint,marginBottom:12,fontFamily:"'Manrope',sans-serif"}}>{isDecant?`${l.decant_ml}ml dekant`:`${l.size||""}${l.fill?` · ${l.fill}% tele`:""}`}</div>
+        {!isDecant&&l.fill&&<BottleCompact pct={l.fill}/>}
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:T.heading,marginBottom:14,marginTop:"auto",fontWeight:600}}>
+          {(l.price||0).toLocaleString("hu-HU")} Ft
+          {isDecant&&<span style={{fontSize:12,color:T.faint,fontFamily:"'Manrope',sans-serif",marginLeft:6}}>/ {l.decant_ml}ml</span>}
+        </div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:12,borderTop:`1px solid ${B.border}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <Ava u={u} size={24}/>
+            <span style={{fontSize:12,color:T.muted,fontFamily:"'Manrope',sans-serif",fontWeight:500}}>{u?.name?.split(" ")[0]||"?"}</span>
+            {u?.verified&&<span style={{color:ACC.gold,fontSize:11}}>✓</span>}
+            <RankBadge sales={u?.sales||0}/>
+          </div>
+          <span style={{fontSize:10,color:T.faint,fontFamily:"'Manrope',sans-serif"}}>👁 {l.views||0}</span>
+        </div>
       </div>
     </div>
   );
@@ -1178,7 +1225,27 @@ function Detail({l,u,curProfile,go,setProfileId,setActiveChatWith,onStatusChange
             {status!=="active"&&<Pill text={status==="sold"?"Eladva":"Függőben"} bg={sCol+"12"} col={sCol}/>}
             {l.swap_ok&&<Pill text="Csere OK" bg="#f5f0fb" col="#7a5ab0"/>}
           </div>
-          <div style={{fontSize:72,marginBottom:20}}>{l.icon||"🫙"}</div>
+          {/* Képgaléria vagy ikon */}
+          {l.image_urls?.length>0 ? (
+            <div style={{marginBottom:28}}>
+              <div style={{width:"100%",height:320,borderRadius:10,overflow:"hidden",marginBottom:10,border:`1px solid ${B.border}`}}>
+                <img src={l.image_urls[0]} alt={l.name} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
+                  onError={e=>e.currentTarget.style.display="none"}/>
+              </div>
+              {l.image_urls.length>1&&(
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {l.image_urls.slice(1).map((url,i)=>(
+                    <div key={i} style={{width:72,height:72,borderRadius:7,overflow:"hidden",border:`1px solid ${B.border}`,cursor:"pointer"}}
+                      onClick={e=>{e.stopPropagation();const main=e.currentTarget.closest("div").previousSibling.querySelector("img");if(main){const tmp=main.src;main.src=url;e.currentTarget.querySelector("img").src=tmp;}}}>
+                      <img src={url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{fontSize:72,marginBottom:20}}>{l.icon||"🫙"}</div>
+          )}
           <p style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:T.faint,letterSpacing:3,marginBottom:5,fontWeight:700}}>{(l.brand||"").toUpperCase()}</p>
           <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:isMob?32:52,color:T.heading,fontWeight:400,lineHeight:1.05,marginBottom:8}}>{l.name}</h1>
           <p style={{color:T.faint,marginBottom:28,fontSize:14,fontFamily:"'Manrope',sans-serif"}}>{isDecant?`${l.decant_ml}ml spray dekant`:`${l.size||""}`}</p>
@@ -1760,7 +1827,7 @@ function Sell({curProfile,go,setListings,showToast}) {
         <input type="file" accept="image/*" multiple onChange={e=>setImages(Array.from(e.target.files).slice(0,5))} style={{color:T.muted,fontFamily:"'Manrope',sans-serif",fontSize:13}}/>
         {images.length>0&&<div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>{images.map((img,i)=>(<div key={i} style={{position:"relative"}}><img src={URL.createObjectURL(img)} style={{width:80,height:80,objectFit:"cover",borderRadius:7,border:`1px solid ${B.border}`}} alt=""/><button onClick={()=>setImages(p=>p.filter((_,j)=>j!==i))} style={{position:"absolute",top:-6,right:-6,background:ACC.red,border:"none",borderRadius:"50%",width:20,height:20,cursor:"pointer",color:"white",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div>))}</div>}
       </SellField>
-      <SellField label="Ikon"><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{ICONS.map(ic=>(<button key={ic} onClick={()=>setSIcon(ic)} style={{background:sIcon===ic?ACC.goldPale:B.paper,border:`1px solid ${sIcon===ic?ACC.gold:B.border}`,borderRadius:7,padding:"8px 12px",cursor:"pointer",fontSize:20,transition:"all .15s"}}>{ic}</button>))}</div></SellField>
+
       <button onClick={submit} disabled={loading} style={{background:ACC.ink,border:"none",color:B.canvas,padding:"18px",width:"100%",borderRadius:8,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:15,fontWeight:700,marginTop:12,opacity:loading?.6:1,letterSpacing:.3}}>{loading?"Feltöltés...":"Hirdetés közzététele →"}</button>
     </div>
   );
