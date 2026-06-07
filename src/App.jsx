@@ -1821,7 +1821,7 @@ const [sIcon,setSIcon]=useState("✨");
     const e={};if(!brand)e.brand="Kötelező";if(!name)e.name="Kötelező";if(!price||Number(price)<=0)e.price="Adj meg érvényes árat";if(!desc)e.description="Kötelező";
     if(Object.keys(e).length>0){setErrors(e);showToast("Töltsd ki a kötelező mezőket!","error");return;}
     setErrors({});setLoading(true);const isDec=sListingType==="decant";
-    const{data,error}=await supabase.from("listings").insert({user_id:curProfile.id,type:sType,listing_type:sListingType,brand,name,size:isDec?null:sSize,fill:(!isDec&&sType==="sell")?Number(sFill):null,condition:    null,price:Number(price),decant_ml:isDec?Number(sDecantMl):null,description:desc,category:tags:[],icon:"🫙",views:0,favorites:0,status:"active",swap_ok:sSwap}).select().single();
+    const{data,error}=await supabase.from("listings").insert({user_id:curProfile.id,type:sType,listing_type:sListingType,brand,name,size:isDec?null:sSize,fill:(!isDec&&sType==="sell")?Number(sFill):null,condition:null,price:Number(price),decant_ml:isDec?Number(sDecantMl):null,description:desc,category:null,tags:[],icon:"🫙",views:0,favorites:0,status:"active",swap_ok:sSwap}).select().single();
     if(error){setLoading(false);showToast("Hiba: "+error.message,"error");return;}
     if(images.length>0){const urls=await uploadImages(data.id);await supabase.from("listings").update({image_urls:urls}).eq("id",data.id);data.image_urls=urls;}
     setLoading(false);setListings(p=>[data,...p]);
