@@ -1765,6 +1765,42 @@ function DropItem({ label, query, onSelect, itemStyle }) {
   );
 }
 
+
+// ─── KÉP TÖMÖRÍTÉS ────────────────────────────────────────────────────────────
+// Max 1200px széles/magas, 80% JPEG minőség, ~100-200KB eredmény
+function compressImage(file, maxSize=1200, quality=0.80) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // Arány megtartása
+        let w = img.width, h = img.height;
+        if (w > maxSize || h > maxSize) {
+          if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+          else       { w = Math.round(w * maxSize / h); h = maxSize; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (blob) => resolve(new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" })),
+          "image/jpeg", quality
+        );
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(0) + " KB";
+  return (bytes/(1024*1024)).toFixed(1) + " MB";
+}
+
 function SellField({label,error,children}) {
   return(<div style={{marginBottom:22}}><div style={{fontFamily:"'Manrope',sans-serif",fontSize:10,color:error?ACC.red:T.faint,letterSpacing:2,marginBottom:8,textTransform:"uppercase",fontWeight:700}}>{label}{error&&<span style={{marginLeft:8,textTransform:"none",letterSpacing:0,fontSize:11,fontWeight:500}}>— {error}</span>}</div>{children}</div>);
 }
@@ -1772,20 +1808,20 @@ function SellField({label,error,children}) {
 function Sell({curProfile,go,setListings,showToast}) {
   const [sType,setSType]=useState("sell");const [sListingType,setSLT]=useState("full");
   const [sSize,setSSize]=useState("100ml");const [sFill,setSFill]=useState(90);
-  const [sCondition,setSCond]=useState("excellent");const [sDecantMl,setSDecantMl]=useState("5");
-  const [sCategory,setSCategory]=useState("woody");const [sIcon,setSIcon]=useState("✨");
+const [sDecantMl,setSDecantMl]=useState("5");
+const [sIcon,setSIcon]=useState("✨");
   const [sSwap,setSSwap]=useState(false);const [loading,setLoading]=useState(false);
   const [errors,setErrors]=useState({});const [images,setImages]=useState([]);
-  const refBrand=useRef(null);const refName=useRef(null);const refPrice=useRef(null);const refDesc=useRef(null);const refTags=useRef(null);
+  const refBrand=useRef(null);const refName=useRef(null);const refPrice=useRef(null);const refDesc=useRef(null);
   async function uploadImages(lid){const urls=[];for(const img of images){const ext=img.name.split(".").pop();const path=`${curProfile.id}/${lid}/${Date.now()}.${ext}`;const{error}=await supabase.storage.from("listing-images").upload(path,img);if(!error){const{data}=supabase.storage.from("listing-images").getPublicUrl(path);urls.push(data.publicUrl);}}return urls;}
   async function submit(){
     if(!curProfile){go("login");return;}
     const brand=refBrand.current?.value?.trim()||"";const name=refName.current?.value?.trim()||"";
-    const price=refPrice.current?.value||"";const desc=refDesc.current?.value?.trim()||"";const tags=refTags.current?.value||"";
+    const price=refPrice.current?.value||"";const desc=refDesc.current?.value?.trim()||"";
     const e={};if(!brand)e.brand="Kötelező";if(!name)e.name="Kötelező";if(!price||Number(price)<=0)e.price="Adj meg érvényes árat";if(!desc)e.description="Kötelező";
     if(Object.keys(e).length>0){setErrors(e);showToast("Töltsd ki a kötelező mezőket!","error");return;}
     setErrors({});setLoading(true);const isDec=sListingType==="decant";
-    const{data,error}=await supabase.from("listings").insert({user_id:curProfile.id,type:sType,listing_type:sListingType,brand,name,size:isDec?null:sSize,fill:(!isDec&&sType==="sell")?Number(sFill):null,condition:(!isDec&&sType==="sell")?sCondition:null,price:Number(price),decant_ml:isDec?Number(sDecantMl):null,description:desc,category:sCategory,tags:tags.split(",").map(t=>t.trim()).filter(Boolean),icon:sIcon,views:0,favorites:0,status:"active",swap_ok:sSwap}).select().single();
+    const{data,error}=await supabase.from("listings").insert({user_id:curProfile.id,type:sType,listing_type:sListingType,brand,name,size:isDec?null:sSize,fill:(!isDec&&sType==="sell")?Number(sFill):null,condition:    null,price:Number(price),decant_ml:isDec?Number(sDecantMl):null,description:desc,category:tags:[],icon:"🫙",views:0,favorites:0,status:"active",swap_ok:sSwap}).select().single();
     if(error){setLoading(false);showToast("Hiba: "+error.message,"error");return;}
     if(images.length>0){const urls=await uploadImages(data.id);await supabase.from("listings").update({image_urls:urls}).eq("id",data.id);data.image_urls=urls;}
     setLoading(false);setListings(p=>[data,...p]);
@@ -1810,13 +1846,11 @@ function Sell({curProfile,go,setListings,showToast}) {
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(200px,100%),1fr))",gap:12}}>
         {sListingType==="full"&&(<SellField label="Méret"><select value={sSize} onChange={e=>setSSize(e.target.value)} style={{...inp,cursor:"pointer"}}>{["30ml","50ml","75ml","100ml","125ml","150ml","200ml","Egyéb"].map(s=><option key={s}>{s}</option>)}</select></SellField>)}
         {sListingType==="decant"&&(<SellField label="Dekant (ml)"><select value={sDecantMl} onChange={e=>setSDecantMl(e.target.value)} style={{...inp,cursor:"pointer"}}>{DECANT_SZ.map(s=><option key={s} value={s}>{s}ml</option>)}</select></SellField>)}
-        <SellField label="Kategória"><select value={sCategory} onChange={e=>setSCategory(e.target.value)} style={{...inp,cursor:"pointer"}}>{["woody","oriental","floral","fresh","aromatic"].map(c=><option key={c}>{c}</option>)}</select></SellField>
-        {sListingType==="full"&&sType==="sell"&&(<SellField label="Állapot"><select value={sCondition} onChange={e=>setSCond(e.target.value)} style={{...inp,cursor:"pointer"}}>{Object.entries(COND).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></SellField>)}
       </div>
       {sListingType==="full"&&sType==="sell"&&(<SellField label="Töltöttségi szint"><BottleSlider value={sFill} onChange={setSFill}/></SellField>)}
       <SellField label="Ár (Ft) *" error={errors.price}><input ref={refPrice} defaultValue="" placeholder="pl. 35000" type="number" inputMode="numeric" style={{...inp,...(errors.price?errB:{})}}/></SellField>
       <SellField label="Leírás *" error={errors.description}><textarea ref={refDesc} defaultValue="" rows={5} placeholder="Batch, állapot részletei, csere lehetőség..." style={{...inp,resize:"vertical",...(errors.description?errB:{})}}/></SellField>
-      <SellField label="Tagek (vesszővel)"><input ref={refTags} defaultValue="" placeholder="creed, niche, woody" autoComplete="off" spellCheck="false" style={inp}/></SellField>
+      <SellField label="Tagek (vesszővel)"></SellField>
       <div style={{marginBottom:24}}>
         <div onClick={()=>setSSwap(v=>!v)} style={{display:"flex",gap:14,alignItems:"center",cursor:"pointer"}}>
           <div style={{width:22,height:22,borderRadius:5,flexShrink:0,background:sSwap?"#f5f0fb":"transparent",border:`1.5px solid ${sSwap?"#7a5ab0":B.borderDk}`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>{sSwap&&<span style={{color:"#7a5ab0",fontSize:13,fontWeight:700}}>✓</span>}</div>
@@ -1824,8 +1858,52 @@ function Sell({curProfile,go,setListings,showToast}) {
         </div>
       </div>
       <SellField label="Fotók (max 5)">
-        <input type="file" accept="image/*" multiple onChange={e=>setImages(Array.from(e.target.files).slice(0,5))} style={{color:T.muted,fontFamily:"'Manrope',sans-serif",fontSize:13}}/>
-        {images.length>0&&<div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>{images.map((img,i)=>(<div key={i} style={{position:"relative"}}><img src={URL.createObjectURL(img)} style={{width:80,height:80,objectFit:"cover",borderRadius:7,border:`1px solid ${B.border}`}} alt=""/><button onClick={()=>setImages(p=>p.filter((_,j)=>j!==i))} style={{position:"absolute",top:-6,right:-6,background:ACC.red,border:"none",borderRadius:"50%",width:20,height:20,cursor:"pointer",color:"white",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div>))}</div>}
+        <label style={{display:"inline-flex",alignItems:"center",gap:8,background:B.paper,border:`1px solid ${B.borderDk}`,borderRadius:7,padding:"9px 16px",cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:13,color:T.muted,transition:"border-color .15s"}}
+          onMouseEnter={e=>e.currentTarget.style.borderColor=ACC.gold}
+          onMouseLeave={e=>e.currentTarget.style.borderColor=B.borderDk}>
+          <span style={{fontSize:16}}>📷</span>
+          {compressing ? "Tömörítés..." : "Képek kiválasztása"}
+          <input type="file" accept="image/*" multiple style={{display:"none"}}
+            onChange={async e=>{
+              const files=Array.from(e.target.files).slice(0,5);
+              if(!files.length)return;
+              setCompressing(true);
+              const compressed=await Promise.all(files.map(f=>compressImage(f)));
+              const prev=compressed.map((f,i)=>({
+                url: URL.createObjectURL(f),
+                origSize: files[i].size,
+                newSize: f.size,
+              }));
+              setImages(compressed);
+              setPreviews(prev);
+              setCompressing(false);
+            }}
+          />
+        </label>
+        {compressing&&<p style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint,marginTop:8}}>⏳ Képek optimalizálása...</p>}
+        {previews.length>0&&(
+          <div style={{display:"flex",gap:10,marginTop:12,flexWrap:"wrap"}}>
+            {previews.map((p,i)=>(
+              <div key={i} style={{position:"relative"}}>
+                <img src={p.url} style={{width:88,height:88,objectFit:"cover",borderRadius:8,border:`1px solid ${B.border}`,display:"block"}} alt=""/>
+                {/* Méret info */}
+                <div style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,.55)",borderRadius:"0 0 8px 8px",padding:"3px 5px",textAlign:"center"}}>
+                  <span style={{fontFamily:"'Manrope',sans-serif",fontSize:9,color:"#fff",fontWeight:600}}>{formatBytes(p.newSize)}</span>
+                  {p.origSize>p.newSize&&<span style={{fontFamily:"'Manrope',sans-serif",fontSize:9,color:ACC.greenPale.replace("12",""),marginLeft:4}}>↓{Math.round((1-p.newSize/p.origSize)*100)}%</span>}
+                </div>
+                <button onClick={()=>{
+                  setImages(im=>im.filter((_,j)=>j!==i));
+                  setPreviews(pv=>pv.filter((_,j)=>j!==i));
+                }} style={{position:"absolute",top:-6,right:-6,background:ACC.red,border:"none",borderRadius:"50%",width:20,height:20,cursor:"pointer",color:"white",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(0,0,0,.2)"}}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {previews.length>0&&(
+          <p style={{fontFamily:"'Manrope',sans-serif",fontSize:11,color:T.faint,marginTop:8}}>
+            {previews.length} kép · összesen {formatBytes(previews.reduce((s,p)=>s+p.newSize,0))} · eredeti: {formatBytes(previews.reduce((s,p)=>s+p.origSize,0))}
+          </p>
+        )}
       </SellField>
 
       <button onClick={submit} disabled={loading} style={{background:ACC.ink,border:"none",color:B.canvas,padding:"18px",width:"100%",borderRadius:8,cursor:"pointer",fontFamily:"'Manrope',sans-serif",fontSize:15,fontWeight:700,marginTop:12,opacity:loading?.6:1,letterSpacing:.3}}>{loading?"Feltöltés...":"Hirdetés közzététele →"}</button>
