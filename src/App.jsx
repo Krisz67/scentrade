@@ -1182,6 +1182,7 @@ function Detail({l,u,curProfile,go,setProfileId,setActiveChatWith,onStatusChange
   const reviewRef=useRef(null);
   const isDecant=l.listing_type==="decant";const isOwn=curProfile?.id===l.user_id;
   const isMob=useIsMobile();
+  const [activeImg,setActiveImg]=useState(0);
 
   async function openMsg(){if(!curProfile){go("login");return;}setActiveChatWith(u.id);go("messages");}
   async function openSoldModal(){
@@ -1228,15 +1229,16 @@ function Detail({l,u,curProfile,go,setProfileId,setActiveChatWith,onStatusChange
           {/* Képgaléria vagy ikon */}
           {l.image_urls?.length>0 ? (
             <div style={{marginBottom:28}}>
-              <div style={{width:"100%",height:320,borderRadius:10,overflow:"hidden",marginBottom:10,border:`1px solid ${B.border}`}}>
-                <img src={l.image_urls[0]} alt={l.name} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
-                  onError={e=>e.currentTarget.style.display="none"}/>
+              <div style={{width:"100%",height:isMob?240:320,borderRadius:10,overflow:"hidden",marginBottom:10,border:`1px solid ${B.border}`,background:B.warm}}>
+                <img src={l.image_urls[activeImg]} alt={l.name}
+                  style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
+                  onError={e=>{e.currentTarget.style.display="none";}}/>
               </div>
               {l.image_urls.length>1&&(
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {l.image_urls.slice(1).map((url,i)=>(
-                    <div key={i} style={{width:72,height:72,borderRadius:7,overflow:"hidden",border:`1px solid ${B.border}`,cursor:"pointer"}}
-                      onClick={e=>{e.stopPropagation();const main=e.currentTarget.closest("div").previousSibling.querySelector("img");if(main){const tmp=main.src;main.src=url;e.currentTarget.querySelector("img").src=tmp;}}}>
+                  {l.image_urls.map((url,i)=>(
+                    <div key={i} onClick={()=>setActiveImg(i)}
+                      style={{width:64,height:64,borderRadius:6,overflow:"hidden",cursor:"pointer",border:`2px solid ${activeImg===i?ACC.gold:B.border}`,flexShrink:0,transition:"border-color .15s"}}>
                       <img src={url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                     </div>
                   ))}
