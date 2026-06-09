@@ -1811,7 +1811,6 @@ function Sell({curProfile,go,setListings,showToast}) {
   const [sType,setSType]=useState("sell");const [sListingType,setSLT]=useState("full");
   const [sSize,setSSize]=useState("100ml");const [sFill,setSFill]=useState(90);
 const [sDecantMl,setSDecantMl]=useState("5");
-const [sIcon,setSIcon]=useState("✨");
   const [sSwap,setSSwap]=useState(false);const [loading,setLoading]=useState(false);
   const [errors,setErrors]=useState({});const [images,setImages]=useState([]);
   const refBrand=useRef(null);const refName=useRef(null);const refPrice=useRef(null);const refDesc=useRef(null);
@@ -1852,7 +1851,6 @@ const [sIcon,setSIcon]=useState("✨");
       {sListingType==="full"&&sType==="sell"&&(<SellField label="Töltöttségi szint"><BottleSlider value={sFill} onChange={setSFill}/></SellField>)}
       <SellField label="Ár (Ft) *" error={errors.price}><input ref={refPrice} defaultValue="" placeholder="pl. 35000" type="number" inputMode="numeric" style={{...inp,...(errors.price?errB:{})}}/></SellField>
       <SellField label="Leírás *" error={errors.description}><textarea ref={refDesc} defaultValue="" rows={5} placeholder="Batch, állapot részletei, csere lehetőség..." style={{...inp,resize:"vertical",...(errors.description?errB:{})}}/></SellField>
-      <SellField label="Tagek (vesszővel)"></SellField>
       <div style={{marginBottom:24}}>
         <div onClick={()=>setSSwap(v=>!v)} style={{display:"flex",gap:14,alignItems:"center",cursor:"pointer"}}>
           <div style={{width:22,height:22,borderRadius:5,flexShrink:0,background:sSwap?"#f5f0fb":"transparent",border:`1.5px solid ${sSwap?"#7a5ab0":B.borderDk}`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>{sSwap&&<span style={{color:"#7a5ab0",fontSize:13,fontWeight:700}}>✓</span>}</div>
